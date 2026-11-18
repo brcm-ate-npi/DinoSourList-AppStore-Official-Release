@@ -26,11 +26,26 @@ try {
   } while ([DateTime]::UtcNow -lt $deadline)
   if (-not $opened) { throw 'Downloaded tool did not show a real native window' }
   @{ name=$tool.name; version=$installed.version; executable=$opened.Path; pid=$opened.Id; window=$opened.MainWindowTitle; handle=$opened.MainWindowHandle.ToInt64(); sha1=$tool.packages[0].sha1 } | ConvertTo-Json | Set-Content (Join-Path $evidence 'real-tool-window.json') -Encoding utf8
-  Add-Type -AssemblyName System.Windows.Forms,System.Drawing
-  $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-  $bitmap = New-Object System.Drawing.Bitmap $bounds.Width,$bounds.Height
+  Add-Type -AssemblyName System.Drawing
+  Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class DinoToolWindow {
+ [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+ [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+ [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr dc, uint flags);
+}
+'@
+  $rect = New-Object DinoToolWindow+Rect
+  if (-not [DinoToolWindow]::GetWindowRect($opened.MainWindowHandle,[ref]$rect)) { throw 'Cannot measure the real tool window' }
+  $bitmap = New-Object System.Drawing.Bitmap ($rect.Right-$rect.Left),($rect.Bottom-$rect.Top)
   $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-  try { $graphics.CopyFromScreen($bounds.Location,[System.Drawing.Point]::Empty,$bounds.Size); $bitmap.Save((Join-Path $evidence 'real-tool-window.png')) } finally { $graphics.Dispose(); $bitmap.Dispose() }
+  $dc=$graphics.GetHdc()
+  try {
+    if (-not [DinoToolWindow]::PrintWindow($opened.MainWindowHandle,$dc,2)) { throw 'Cannot capture the real tool window' }
+  } finally { $graphics.ReleaseHdc($dc); $graphics.Dispose() }
+  try { $bitmap.Save((Join-Path $evidence 'real-tool-window.png')) } finally { $bitmap.Dispose() }
+
 } finally {
   Get-Process PasswordGeneration -ErrorAction SilentlyContinue | Where-Object { $_.Id -notin $existing -and $_.Path -and $_.Path.StartsWith($data,[StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force
 }

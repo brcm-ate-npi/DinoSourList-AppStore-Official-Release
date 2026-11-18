@@ -63,7 +63,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnDetailsVisibleChanged(bool value) { foreach (var tool in Tools) tool.NotifyLayout(); }
     [ObservableProperty] private bool detailsVisible;
     [ObservableProperty] private bool editingProfile;
-    public string PageTitle => FavouritesOnly ? "Favourites" : Page switch { "Store" => "Software Store", "Installed" => "Local Dashboard", "Developers" => "Dev Profile", "Assistant" => "AI Assistant", "News" => "News Updates", _ => Page };
+    public string PageTitle => FavouritesOnly ? "Favourites" : Page switch { "Store" => "Software Store", "Installed" => "Local Dashboard", "Developers" => "Dev Profile", "Assistant" => "AI Assistant", "News" => "News Updates", "Links" => "Useful Links", _ => Page };
     public string UserName => Environment.UserName;
     public string LocalCount => $"Local Downloads: {Tools.Count(t => t.HasInstalled)}";
     public string StoreCount => $"Software Store: {Tools.Count}";
@@ -114,8 +114,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string legacySummary = "Preview old installations and favourites before importing. Existing folders are linked in place and never deleted.";
     [ObservableProperty] private string updateStatus = "";
     private LegacyPreview? legacyPreview;
+    public bool IsDashboard => Page == "Installed";
+    public Func<Task<string?>>? LegacyFolderPicker { get; set; }
+    [RelayCommand] private async Task BrowseLegacyAsync() { if (LegacyFolderPicker is null) return; var path = await LegacyFolderPicker(); if (path is null) return; LegacyRoot = path; Page = "Settings"; await PreviewLegacyCommand.ExecuteAsync(null); }
     public bool IsStore => Page is "Store" or "Installed";
     public bool IsAssistant => Page == "Assistant";
+    public bool IsLinks => Page == "Links";
     public bool IsNews => Page == "News";
     public bool IsProfile => Page == "Developers";
     public bool IsSettings => Page == "Settings";
@@ -190,7 +194,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnFavouritesOnlyChanged(bool value) => NotifyTools();
     partial void OnPageChanged(string value)
     {
-        foreach (var name in new[] { nameof(IsStore), nameof(IsAssistant), nameof(IsNews), nameof(IsProfile), nameof(IsSettings), nameof(IsLogs) }) OnPropertyChanged(name);
+        foreach (var name in new[] { nameof(IsDashboard), nameof(IsStore), nameof(IsAssistant), nameof(IsLinks), nameof(IsNews), nameof(IsProfile), nameof(IsSettings), nameof(IsLogs) }) OnPropertyChanged(name);
         NotifyTools();
     }
     partial void OnBusyChanged(bool value) { foreach (var tool in Tools) tool.NotifyLayout(); OnPropertyChanged(nameof(Idle)); OnPropertyChanged(nameof(CanInstall)); OnPropertyChanged(nameof(CanLaunch)); }
@@ -219,7 +223,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
     [RelayCommand] private void Navigate(string value) { FavouritesOnly = false; Page = value; DetailsVisible = false; if (autoLoadProfiles && value == "Developers" && Idle) _ = LoadSharedProfileAsync(); }
     [RelayCommand] private void ShowFavourites() { FavouritesOnly = true; Page = "Store"; }
-    [RelayCommand] private void UsefulLinks() => DocumentRequested?.Invoke("Useful links", UserStateService.UsefulLinks);
+    [RelayCommand] private void UsefulLinks() => Page = "Links";
     [RelayCommand] private void PreviewNews() => DocumentRequested?.Invoke("News & updates", News);
     [RelayCommand]
     private async Task GuideAsync() => await GuardAsync(async token =>

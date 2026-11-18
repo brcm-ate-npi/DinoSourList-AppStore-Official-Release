@@ -13,12 +13,17 @@ public sealed partial class ToolCardViewModel(ToolEntry tool, List<InstalledTool
     public Bitmap? Icon { get; set; }
     public bool HasIcon => Icon is not null;
     public double CardWidth => Owner?.ListView == true ? (Owner.StoreWidth - 24) : Math.Min(250, (Owner?.StoreWidth ?? 274) - 24);
+    public bool IsListView => Owner?.ListView == true;
+    public double CardHeight => IsListView ? 94 : 280;
+    public InstalledTool? MatchingInstallation => IsDashboard ? SelectedCardInstallation ?? Installed : InstalledVersions.FirstOrDefault(t => t.Version == SelectedCardPackage?.Version);
     public bool IsDashboard => Owner?.Page == "Installed";
     [ObservableProperty] private InstalledTool? selectedCardInstallation;
-    public string PrimaryAction => Owner?.Page == "Installed" ? "Open" : "Download";
-    public bool CanUse => Owner?.Idle == true && (Owner.Page == "Installed" ? HasInstalled : CanInstall);
+    public string PrimaryAction => MatchingInstallation is not null ? "Open" : "Download";
+    public bool CanUse => Owner?.Idle == true && (MatchingInstallation is not null || (!IsDashboard && CanInstall));
     [ObservableProperty] private ToolPackage? selectedCardPackage = tool.Packages.FirstOrDefault();
-    public void NotifyLayout() { OnPropertyChanged(nameof(CardWidth)); OnPropertyChanged(nameof(PrimaryAction)); OnPropertyChanged(nameof(IsDashboard)); OnPropertyChanged(nameof(CanUse)); }
+    partial void OnSelectedCardPackageChanged(ToolPackage? value) => NotifyLayout();
+    partial void OnSelectedCardInstallationChanged(InstalledTool? value) => NotifyLayout();
+    public void NotifyLayout() { OnPropertyChanged(nameof(IsListView)); OnPropertyChanged(nameof(CardHeight)); OnPropertyChanged(nameof(CardWidth)); OnPropertyChanged(nameof(PrimaryAction)); OnPropertyChanged(nameof(IsDashboard)); OnPropertyChanged(nameof(CanUse)); }
     [RelayCommand] private void Details() => Owner?.SelectCard(this, true);
     [RelayCommand] private async Task ReadmeAsync() { if (Owner is null) return; Owner.SelectCard(this); await Owner.ReadmeCommand.ExecuteAsync(null); }
     [RelayCommand] private async Task FavouriteAsync() { if (Owner is null) return; Owner.SelectCard(this); await Owner.FavouriteCommand.ExecuteAsync(null); }
@@ -26,7 +31,7 @@ public sealed partial class ToolCardViewModel(ToolEntry tool, List<InstalledTool
     {
         if (Owner is null) return;
         Owner.SelectCard(this); Owner.SelectedPackage = SelectedCardPackage;
-        if (Owner.Page == "Installed") { Owner.SelectedInstallation = SelectedCardInstallation ?? Installed; await Owner.LaunchCommand.ExecuteAsync(null); }
+        if (MatchingInstallation is { } installed) { Owner.SelectedInstallation = installed; await Owner.LaunchCommand.ExecuteAsync(null); }
         else await Owner.InstallCommand.ExecuteAsync(null);
     }
     public ToolEntry Tool { get; } = tool;
@@ -36,6 +41,8 @@ public sealed partial class ToolCardViewModel(ToolEntry tool, List<InstalledTool
     public string Category => Tool.Category;
     public string Version => Tool.LatestVersion;
     public string Platforms => Tool.Platforms;
+    public string FavouriteGlyph => IsFavourite ? "★" : "☆";
+    partial void OnIsFavouriteChanged(bool value) => OnPropertyChanged(nameof(FavouriteGlyph));
     public string Initial => Name.TrimStart('#').Length > 0 ? Name.TrimStart('#')[..1].ToUpperInvariant() : "D";
     public List<ToolPackage> Packages => Tool.Packages;
     public List<InstalledTool> InstalledVersions { get; } = installed.Where(x => x.ToolId == tool.Id).OrderByDescending(x => x.Version == activeVersion).ThenByDescending(x => x.Version, ToolVersion.Comparer).ToList();

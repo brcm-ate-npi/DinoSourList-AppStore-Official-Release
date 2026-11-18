@@ -5,6 +5,7 @@ using Avalonia.Media;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using DinoSaurList.ViewModels;
+using DinoSaurList.Core.Registry;
 
 namespace DinoSaurList;
 
@@ -18,6 +19,14 @@ public sealed partial class MainWindow : Window
         {
             if (DataContext is not MainViewModel vm) return;
             vm.WindowWidth = ClientSize.Width > 0 ? ClientSize.Width : Width;
+            UsefulLinksViewer.Content = DocumentWindow.CreateViewer(UserStateService.UsefulLinks);
+            NewsViewer.Content = DocumentWindow.CreateViewer(vm.News);
+            vm.PropertyChanged += (_, change) => { if (change.PropertyName == nameof(vm.News)) NewsViewer.Content = DocumentWindow.CreateViewer(vm.News); };
+            vm.LegacyFolderPicker = async () =>
+            {
+                var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Choose the Python DinoSaurList installation", AllowMultiple = false });
+                return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
+            };
             vm.PhotoPicker = async () =>
             {
                 var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions

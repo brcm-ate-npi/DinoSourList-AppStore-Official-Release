@@ -12,6 +12,10 @@ public sealed class DocumentWindow : Window
     public DocumentWindow(string title, string markdown)
     {
         Title = title; Width = 900; Height = 700; MinWidth = 550; MinHeight = 400;
+        Content = CreateViewer(markdown);
+    }
+    public static global::Markdown.Avalonia.Full.MarkdownScrollViewer CreateViewer(string markdown)
+    {
         var safe = Regex.Replace(markdown, @"<(script|style|iframe|object)\b[^>]*>.*?</(?:script|style|iframe|object)>", "", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.NonBacktracking);
         var viewer = new global::Markdown.Avalonia.Full.MarkdownScrollViewer
         {
@@ -19,7 +23,7 @@ public sealed class DocumentWindow : Window
             Plugins = new global::Markdown.Avalonia.Full.MdAvPlugins { HyperlinkCommand = new WebLinkCommand() },
             Markdown = safe
         };
-        Content = viewer;
+        return viewer;
     }
     private sealed class WebLinkCommand : ICommand
     {
