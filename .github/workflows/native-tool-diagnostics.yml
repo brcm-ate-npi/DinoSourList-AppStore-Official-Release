@@ -1,0 +1,20 @@
+name: Native Windows tool diagnostics
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: self-host-win11
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Diagnose real portable tool startup
+        shell: pwsh
+        run: ./scripts/diagnose-real-tool-windows.ps1
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: native-tool-diagnostics
+          path: ${{ runner.temp }}/native-tool-diagnostics
