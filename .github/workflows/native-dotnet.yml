@@ -275,7 +275,6 @@ jobs:
           name: DinoSaurList-${{ matrix.rid }}-preview
           path: Releases/*
           if-no-files-found: error
-          retention-days: 14
 
   release:
     needs: package
