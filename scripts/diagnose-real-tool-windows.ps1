@@ -16,13 +16,13 @@ $p=Start-Process $exe -WorkingDirectory $installed.directory -PassThru
 try{
  Start-Sleep -Seconds 5
  $p.Refresh()
- $state=@{pid=$p.Id;name=$p.ProcessName;exited=$p.HasExited;userInteractive=[Environment]::UserInteractive;runnerSession=(Get-Process -Id $PID).SessionId;path=$exe}
+ $state=@{pid=$p.Id;exited=$p.HasExited;userInteractive=[Environment]::UserInteractive;runnerSession=(Get-Process -Id $PID).SessionId;path=$exe}
  if($p.HasExited){$state.exitCode=$p.ExitCode}else{$state.windowHandle=$p.MainWindowHandle.ToInt64();$state.windowTitle=$p.MainWindowTitle;$state.session=$p.SessionId}
  $state | ConvertTo-Json | Tee-Object -FilePath (Join-Path $out 'process.json')
  Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=$start.AddSeconds(-10)} -ErrorAction SilentlyContinue | Where-Object {$_.Message -match 'PasswordGeneration'} | Select-Object TimeCreated,ProviderName,Id,Message | ConvertTo-Json -Depth 4 | Tee-Object -FilePath (Join-Path $out 'events.json')
- Add-Type -AssemblyName System.Windows.Forms,System.Drawing
- $bounds=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds
- $bitmap=New-Object System.Drawing.Bitmap $bounds.Width,$bounds.Height
- $graphics=[System.Drawing.Graphics]::FromImage($bitmap)
- try{$graphics.CopyFromScreen($bounds.Location,[System.Drawing.Point]::Empty,$bounds.Size);$bitmap.Save((Join-Path $out 'desktop.png'))}finally{$graphics.Dispose();$bitmap.Dispose()}
+ # Do not capture the shared runner desktop or unrelated applications.
+ if(-not $p.HasExited -and $p.MainWindowHandle -ne 0){
+   $p.CloseMainWindow() | Out-Null
+ }
+
 }finally{if(-not $p.HasExited){Stop-Process -Id $p.Id -Force}}
