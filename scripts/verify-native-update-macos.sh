@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Exercise the unmodified published .7 app's automatic update in an isolated app/data directory.
+# Exercise an unmodified published app's automatic update in an isolated app/data directory.
 set -euo pipefail
 proof="$RUNNER_TEMP/dinosaurlist-update-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
 evidence="$RUNNER_TEMP/native-update-evidence"
 mkdir -p "$proof" "$evidence"
 feed=https://npi-service.kor.broadcom.net/dinosaurlist/
-old=0.1.0-preview.20261118.7
+old="${NATIVE_UPDATE_FROM:-0.1.0-preview.20261118.13}"
 curl --fail --location --silent --show-error --retry 3 --max-time 60 "${feed}releases.osx-preview.json" -o "$evidence/feed.json"
 version=$(plutil -extract Assets.0.Version raw -o - "$evidence/feed.json")
 file=$(plutil -extract Assets.0.FileName raw -o - "$evidence/feed.json")
@@ -117,3 +117,4 @@ grep -F "\"version\": \"$version\"" "$evidence/updated-ui.json" >/dev/null
 grep -F preserve-update-proof "$DINOSAURLIST_DATA_DIR/sentinel.txt" >/dev/null
 printf '{"from":"%s","to":"%s","automaticDownload":true,"nextStartupApplied":true,"dataPreserved":true,"sha256":"%s"}\n' "$old" "$version" "$actual" > "$evidence/update-result.json"
 cat "$evidence/update-result.json"
+printf "::notice title=Published Mac automatic update verified::%s to %s; automatic download, SHA256, next-start apply, updated UI and sentinel passed\n" "$old" "$version"
