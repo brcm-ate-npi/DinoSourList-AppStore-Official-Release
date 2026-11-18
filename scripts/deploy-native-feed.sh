@@ -24,7 +24,9 @@ for file in "$source_dir"/*; do
   [ -f "$file" ] && copy_asset "$file"
 done
 for file in "$source_dir"/releases.*.json "$source_dir"/assets.*.json "$source_dir"/RELEASES*; do copy_asset "$file"; done
-# Keep previous packages: published feed entries and clients may still reference them.
+# Match the server's bounded release history, independently for each OS/channel.
+# Run only after complete publication; every live JSON/legacy feed reference is protected.
+python3 "$(dirname "$0")/prune-native-feed.py" "$target_dir" --keep 2 --apply
 python3 - "$target_dir" <<'PY'
 import json, os, sys, tempfile
 root = sys.argv[1]
