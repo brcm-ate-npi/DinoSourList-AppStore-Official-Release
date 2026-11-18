@@ -19,6 +19,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
+    permissions:
+      contents: write
     # Trusted pushes/manual runs only: never execute public PR code on private runners.
     runs-on: self-hosted-rocky
     steps:
@@ -110,7 +112,29 @@ jobs:
           name: native-ui-evidence
           path: ${{ runner.temp }}/native-screenshots
           if-no-files-found: ignore
+      - name: Prepare unpublished release staging
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG:-v$REQUESTED_VERSION}"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]] || { echo 'Invalid release version'; exit 1; }
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish > "$RUNNER_TEMP/release-stage.json" 2>/dev/null; then
+            python3 - "$RUNNER_TEMP/release-stage.json" "$GITHUB_SHA" <<'PYCODE'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['isDraft'] and r['targetCommitish']==sys.argv[2], 'Published releases are immutable; choose a new version'
+          PYCODE
+          else
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "DinoSaurList $tag" --generate-notes
+          fi
   package:
+    permissions:
+      contents: write
     needs: test
     strategy:
       fail-fast: false
@@ -263,6 +287,7 @@ jobs:
             } finally { $zip.Dispose() }
           }
       - uses: actions/upload-artifact@v7.0.2
+        if: github.ref_type != 'tag' && !(github.event_name == 'workflow_dispatch' && inputs.publish)
         with:
           name: DinoSaurList-${{ matrix.rid }}-preview
           path: Releases/*
@@ -276,8 +301,16 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/verify-real-tool-windows.ps1
+      - name: Stage verified packages and installed evidence in the draft release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RID: ${{ matrix.rid }}
+          NATIVE_RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
+        run: dotnet run --project scripts/ReleaseTransfer/ReleaseTransfer.csproj -c Release
       - uses: actions/upload-artifact@v7.0.2
-        if: always()
+        if: always() && github.ref_type != 'tag' && !(github.event_name == 'workflow_dispatch' && inputs.publish)
         with:
           name: installed-ui-${{ matrix.rid }}
           path: ${{ runner.temp }}/native-installed-evidence
@@ -296,11 +329,6 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v8.0.2
-        with:
-          pattern: DinoSaurList-*-preview
-          path: native-release-assets
-          merge-multiple: true
       - name: Publish GitHub release
         shell: bash
         env:
@@ -312,12 +340,15 @@ jobs:
           tag="$RELEASE_TAG"
           if [ -z "$tag" ]; then tag="v$REQUESTED_VERSION"; fi
           [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]] || { echo 'Invalid release version'; exit 1; }
-          # A draft stays invisible to updaters until both OS packages have been uploaded.
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo 'This release already exists; use a new version to keep published packages immutable.'
-            exit 1
-          fi
-          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "DinoSaurList $tag" --generate-notes native-release-assets/*
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish,assets > "$RUNNER_TEMP/release-stage.json"
+          python3 - "$RUNNER_TEMP/release-stage.json" "$GITHUB_SHA" <<'PYCODE'
+          import json,sys
+          r=json.load(open(sys.argv[1])); assert r['isDraft'] and r['targetCommitish']==sys.argv[2]
+          names=[a['name'] for a in r['assets']]
+          assert sum(n.endswith('-full.nupkg') for n in names)==2, 'Both OS packages required'
+          assert sum(n.startswith('releases.') and n.endswith('.json') for n in names)==2, 'Both feeds required'
+          assert all('validation-'+rid+'.zip' in names for rid in ('win-x64','osx-arm64')), 'Both installed validations required'
+          PYCODE
           flags=()
           if [[ "$tag" == *-* ]]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false "${flags[@]}"
@@ -332,11 +363,15 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v8.0.2
-        with:
-          pattern: DinoSaurList-*-preview
-          path: native-release-assets
-          merge-multiple: true
+      - name: Download published native release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
+        run: |
+          mkdir -p native-release-assets
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir native-release-assets --clobber \
+            --pattern 'DinoSaurListNative-*' --pattern 'releases.*' --pattern 'assets.*' --pattern 'RELEASES*'
       - name: Deploy NPI release feed
         shell: bash
         run: |
