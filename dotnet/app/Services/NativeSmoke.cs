@@ -26,7 +26,9 @@ internal static class NativeSmoke
         await vm.LoadLocalIdentityAsync();
         vm.NavigateCommand.Execute("Installed");
         await Task.Delay(200);
-        if (window.FindControl<Button>("DashboardUpdateButton") is not { IsEffectivelyVisible: true }) throw new InvalidOperationException("Dashboard application update action is missing.");
+        if (window.FindControl<Button>("DashboardUpdateButton") is not null || window.FindControl<ScrollViewer>("SettingsScroll") is { IsVisible: true })
+            throw new InvalidOperationException("Dashboard still contains Settings-only actions.");
+        if (window.FindControl<Border>("UserInfoSeparator") is not { IsEffectivelyVisible: true }) throw new InvalidOperationException("Profile divider is missing.");
         vm.OpenAssistantCommand.Execute(null);
         await Task.Delay(200);
         var assistantWindow = window.OwnedWindows.OfType<AssistantWindow>().Single();
@@ -34,6 +36,21 @@ internal static class NativeSmoke
         SaveWindow(assistantWindow, prefix + "-assistant.png");
         assistantWindow.Close();
         SaveWindow(window, prefix + "-dashboard.png");
+        vm.ToggleSidebarCommand.Execute(null); await Task.Delay(200);
+        if (window.FindControl<Border>("Sidebar") is not { Bounds.Width: < 100 } || window.FindControl<TextBlock>("DashboardNavLabel") is { IsEffectivelyVisible: true })
+            throw new InvalidOperationException("Sidebar did not collapse to an icon rail.");
+        SaveWindow(window, prefix + "-collapsed.png");
+        vm.ToggleSidebarCommand.Execute(null);
+        vm.NavigateCommand.Execute("Settings"); await Task.Delay(200);
+        if (window.FindControl<Button>("BrowsePythonInstallation") is not { IsEffectivelyVisible: true }) throw new InvalidOperationException("Settings import action is missing.");
+        SaveWindow(window, prefix + "-settings.png");
+        var settingsScroll = window.FindControl<ScrollViewer>("SettingsScroll")!;
+        settingsScroll.ScrollToEnd(); await Task.Delay(200);
+        var browse = window.FindControl<Button>("BrowsePythonInstallation")!;
+        var browsePosition = browse.TranslatePoint(default, settingsScroll);
+        if (browsePosition is null || browsePosition.Value.Y < 0 || browsePosition.Value.Y + browse.Bounds.Height > settingsScroll.Viewport.Height)
+            throw new InvalidOperationException("Settings import action cannot be reached by scrolling.");
+        SaveWindow(window, prefix + "-settings-import.png");
         vm.NavigateCommand.Execute("News"); await Task.Delay(200);
         if (!vm.News.Contains("5.0.0.0", StringComparison.Ordinal)) throw new InvalidOperationException("Python news version/content is missing.");
         SaveWindow(window, prefix + "-news.png");

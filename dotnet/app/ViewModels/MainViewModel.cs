@@ -62,9 +62,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string page = "Installed";
     [ObservableProperty] private bool listView;
     [ObservableProperty] private double windowWidth = 1240;
-    public double StoreWidth => Math.Max(230, WindowWidth - 210 - 48 - (DetailsVisible ? 336 : 0));
+    [ObservableProperty] private bool sidebarCollapsed;
+    public double SidebarWidth => SidebarCollapsed ? 76 : 210;
+    public string SidebarToggleGlyph => SidebarCollapsed ? "›" : "‹";
+    public string ExitLabel => SidebarCollapsed ? "×" : "Exit";
+    [RelayCommand] private void ToggleSidebar() => SidebarCollapsed = !SidebarCollapsed;
+    partial void OnSidebarCollapsedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(SidebarWidth)); OnPropertyChanged(nameof(SidebarToggleGlyph)); OnPropertyChanged(nameof(ExitLabel));
+        foreach (var tool in Tools) tool.NotifyLayout();
+    }
+    public double StoreWidth => Math.Max(120, WindowWidth - SidebarWidth - 48 - 18 - (DetailsVisible ? 336 : 0));
     partial void OnWindowWidthChanged(double value) { foreach (var tool in Tools) tool.NotifyLayout(); }
-    partial void OnDetailsVisibleChanged(bool value) { foreach (var tool in Tools) tool.NotifyLayout(); }
+    partial void OnDetailsVisibleChanged(bool value)
+    {
+        if (value && !IsDashboard) { DetailsVisible = false; return; }
+        foreach (var tool in Tools) tool.NotifyLayout();
+    }
     [ObservableProperty] private bool detailsVisible;
     [ObservableProperty] private bool editingProfile;
     public string PageTitle => FavouritesOnly ? "Favourites" : Page switch { "Store" => "Software Store", "Installed" => "Local Dashboard", "Developers" => "Dev Profile", "Assistant" => "AI Assistant", "News" => "News Updates", "Links" => "Useful Links", _ => Page };
@@ -93,7 +107,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand] private void SelectContributionDay(ContributionCell? cell) => SelectedContributionDay = cell;
     [RelayCommand] private void OpenProfileTool(ToolCardViewModel? tool) { if (tool is null) return; Navigate("Store"); SelectCard(tool, true); }
     public IEnumerable<ProfileLink> ProfileLinks => ProfileLinksText.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.Split('|', 3, StringSplitOptions.TrimEntries)).Where(p => p.Length > 1).Select(p => new ProfileLink(p[0], p[1], p.Length > 2 ? p[2] : ""));
-    public void SelectCard(ToolCardViewModel card, bool details = false) { SelectedTool = card; DetailsVisible = details; }
+    public void SelectCard(ToolCardViewModel card, bool details = false) { SelectedTool = card; DetailsVisible = details && IsDashboard; }
     partial void OnListViewChanged(bool value) { foreach (var tool in Tools) tool.NotifyLayout(); }
     partial void OnProfileLinksTextChanged(string value) => OnPropertyChanged(nameof(ProfileLinks));
     [RelayCommand] private void CloseDetails() => DetailsVisible = false;
@@ -214,6 +228,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnFavouritesOnlyChanged(bool value) => NotifyTools();
     partial void OnPageChanged(string value)
     {
+        DetailsVisible = false;
         foreach (var name in new[] { nameof(IsDashboard), nameof(IsStore), nameof(IsAssistant), nameof(IsLinks), nameof(IsNews), nameof(IsProfile), nameof(IsSettings), nameof(IsLogs) }) OnPropertyChanged(name);
         NotifyTools();
     }

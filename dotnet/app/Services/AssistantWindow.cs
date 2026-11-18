@@ -16,7 +16,7 @@ public sealed class AssistantWindow : Window
     {
         Title = "AI Assistant"; Width = 760; Height = 680; MinWidth = 520; MinHeight = 420;
         DataContext = vm;
-        var transcript = new SelectableTextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(14) };
+        var transcript = new SelectableTextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(14,14,24,24) };
         transcript.Bind(TextBlock.TextProperty, new Binding(nameof(vm.AssistantConversation)));
         var history = new ScrollViewer { Content = transcript };
         var question = new TextBox { PlaceholderText = "Describe your task…", MinWidth = 280 };
