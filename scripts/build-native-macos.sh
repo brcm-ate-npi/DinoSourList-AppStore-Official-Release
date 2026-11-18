@@ -11,6 +11,8 @@ rm -rf publish Releases DinoSaurList.iconset
 # App and CLI share the installation/runtime/updater location.
 dotnet publish dotnet/app/DinoSaurList.App.csproj -c Release -r osx-arm64 --self-contained true -p:Version="$version" -o publish
 dotnet publish dotnet/cli/DinoSaurList.Cli.csproj -c Release -r osx-arm64 --self-contained true -p:Version="$version" -o publish
+mkdir -p publish/Licenses/DotNet
+cp "$DOTNET_ROOT/LICENSE.txt" "$DOTNET_ROOT/ThirdPartyNotices.txt" publish/Licenses/DotNet/
 mkdir -p DinoSaurList.iconset
 sips -s format png IcoFolder/main.ico --out icon-source.png
 for size in 16 32 128 256 512; do

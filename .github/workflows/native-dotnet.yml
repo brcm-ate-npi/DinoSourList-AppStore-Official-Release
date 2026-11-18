@@ -228,7 +228,10 @@ jobs:
           dotnet publish app/DinoSaurList.App.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:Version=$env:NATIVE_VERSION -o ../publish
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet publish cli/DinoSaurList.Cli.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:Version=$env:NATIVE_VERSION -o ../publish
-          exit $LASTEXITCODE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force ../publish/Licenses/DotNet | Out-Null
+          Copy-Item "$env:DOTNET_ROOT/LICENSE.txt", "$env:DOTNET_ROOT/ThirdPartyNotices.txt" ../publish/Licenses/DotNet/
+          exit 0
       - name: Restore pinned Velopack packaging tool
         run: dotnet tool restore
       - name: Package Windows preview
