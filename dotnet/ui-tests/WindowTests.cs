@@ -51,6 +51,31 @@ public sealed class WindowTests
         finally { window.Close(); Directory.Delete(root, true); }
     }
     [AvaloniaFact]
+    public async Task StoreCardOpensTheSelectedInstalledVersionThroughCore()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "dinosaurlist-card-" + Guid.NewGuid().ToString("N"));
+        var storage = new AppStorage(root); var directory = Path.Combine(storage.Packages, "1", "1.0.0"); Directory.CreateDirectory(directory);
+        var execution = OperatingSystem.IsWindows() ? "run.cmd" : "run.sh";
+        await File.WriteAllTextAsync(Path.Combine(directory, execution), OperatingSystem.IsWindows() ? "@echo off\r\n> \"%~dp0launched.txt\" echo launched\r\n" : "#!/bin/sh\nprintf launched > \"$(dirname \"$0\")/launched.txt\"\n", TestContext.Current.CancellationToken);
+        var flow = FlowDocument.Parse("[Platform]\nsupported=any\n[Execution]\nfile=" + execution);
+        var tool = new ToolEntry("1", "Tool-Author", "Tool", "Author", "Foundation", [new("3", "v2.0.0-any.zip", "2.0.0", 1, new string('a', 40), "any"), new("2", "v1.0.0-any.zip", "1.0.0", 1, new string('b', 40), "any")], flow, []);
+        await storage.WriteAsync("catalogue.json", new CatalogueSnapshot(DateTimeOffset.UtcNow, [tool], []), TestContext.Current.CancellationToken);
+        await new DinoSaurList.Core.Install.InstallationStore(storage).AddAsync(new("1", "Tool-Author", "Tool", "Author", "1.0.0", directory, execution, DateTimeOffset.UtcNow, Flow: flow), TestContext.Current.CancellationToken);
+        using var vm = new MainViewModel(root, autoLoadProfiles: false); var window = new MainWindow { DataContext = vm }; window.Show();
+        try
+        {
+            await vm.InitializeAsync(); vm.NavigateCommand.Execute("Store"); Dispatcher.UIThread.RunJobs();
+            var card = Assert.Single(vm.Tools); Assert.Equal("Download", card.PrimaryAction);
+            card.SelectedCardPackage = tool.Packages[1]; Assert.Equal("Open", card.PrimaryAction);
+            await card.PrimaryCommand.ExecuteAsync(null);
+            var marker = Path.Combine(directory, "launched.txt");
+            for (var attempt = 0; attempt < 30 && !File.Exists(marker); attempt++) await Task.Delay(100, TestContext.Current.CancellationToken);
+            Assert.True(File.Exists(marker), vm.Status); Assert.Equal("1.0.0", vm.SelectedInstallation?.Version);
+            vm.ListView = true; Dispatcher.UIThread.RunJobs(); Assert.True(card.IsListView); Assert.Equal(94, card.CardHeight);
+        }
+        finally { window.Close(); Directory.Delete(root, true); }
+    }
+    [AvaloniaFact]
     public void ReadmeViewerRendersHeadingCodeAndLinksWithoutWebView()
     {
         var window = new DocumentWindow("README", "# Title\n\nSome **text**\n```\ncode();\n```\n[Guide](https://example.test/guide)"); window.Show();
