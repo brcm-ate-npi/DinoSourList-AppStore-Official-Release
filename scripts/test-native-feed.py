@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import json
 import tempfile
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -35,6 +36,17 @@ class FeedTests(unittest.TestCase):
         next(self.root.glob("releases.osx*.json")).unlink()
         with self.assertRaises(ValueError):
             feed.verify(self.root)
+
+    def test_invalid_feed_never_changes_existing_live_files(self):
+        target = self.root / "live"
+        target.mkdir()
+        old = target / "releases.win-preview.json"
+        old.write_text("existing feed")
+        next(self.root.glob("*-win-preview-full.nupkg")).write_bytes(b"corrupted")
+        result = subprocess.run(["bash", str(Path(__file__).with_name("deploy-native-feed.sh")), str(self.root), str(target)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual("existing feed", old.read_text())
+        self.assertEqual([old], list(target.iterdir()))
 
     def test_path_escape_fails(self):
         path = self.root / "releases.win-preview.json"

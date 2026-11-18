@@ -95,6 +95,7 @@ jobs:
         working-directory: dotnet
         run: dotnet --version
       - run: python3 scripts/check-native-secrets.py
+      - run: python3 scripts/test-native-feed.py
       - name: Restore and check redistribution notices
         run: |
           dotnet restore dotnet/DinoSaurList.sln
