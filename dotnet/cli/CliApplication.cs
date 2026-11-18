@@ -33,6 +33,7 @@ public static class CliApplication
         chat --query TEXT [--context TEXT]       Legacy-style response and follow-up context
                 recommend --query TEXT                   Rank tools using their READMEs
         installed                               List installed versions
+        download --tool ID [--version VERSION]   Download an archive on any OS without installation
         install --tool ID [--version VERSION]    Download, verify and install a package
         launch --tool ID [--version VERSION]     Start the pinned/latest installed version
         pin --tool ID --version VERSION         Set the default installed version
@@ -79,6 +80,10 @@ public static class CliApplication
                     if (command == "chat") { var chat = new AssistantChat(assistant); if (Option("--context") is { } context) chat.Reply(context); Json(chat.Reply(Required("--query"))); }
                     else Json(assistant.Recommend(Required("--query"))); break;
                 case "installed": Json(await installations.LoadAsync(token)); break;
+                case "download":
+                    var downloadTool = await Tool();
+                    var downloadPackage = downloadTool.Packages.FirstOrDefault(p => Option("--version") is not { } requested || p.Version == requested) ?? throw new InvalidOperationException("No matching package.");
+                    Json(new { path = await new PackageDownloadService(box, storage).DownloadAsync(downloadTool, downloadPackage, null, token) }); break;
                 case "install":
                     var selected = await Tool(); var version = Option("--version");
                     var package = selected.Packages.FirstOrDefault(p => (version is null || p.Version == version) && (p.Platform == "any" || p.Platform == ToolLauncher.Platform)) ?? throw new PlatformNotSupportedException("No matching package for this version and OS.");

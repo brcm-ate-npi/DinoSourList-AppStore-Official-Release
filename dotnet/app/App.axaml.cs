@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using DinoSaurList.ViewModels;
 
 namespace DinoSaurList;
@@ -17,8 +18,13 @@ public sealed partial class App : Application
             desktop.MainWindow = window;
             window.Opened += async (_, _) =>
             {
-                if (NativeSmoke.OutputPrefix is null) _ = vm.PrepareAutomaticUpdateAsync();
+                if (NativeSmoke.OutputPrefix is null)
+                {
+                    _ = vm.PrepareAutomaticUpdateAsync();
+                    _ = vm.LoadLocalIdentityAsync();
+                }
                 await vm.InitializeAsync();
+                if (NativeSmoke.OutputPrefix is null) _ = vm.RefreshNewsCommand.ExecuteAsync(null);
                 if (NativeSmoke.OutputPrefix is not null)
                 {
                     try { await NativeSmoke.CaptureAsync(window, vm); desktop.Shutdown(); }
@@ -28,7 +34,10 @@ public sealed partial class App : Application
                     }
                 }
             };
-            desktop.Exit += (_, _) => vm.Dispose();
+            var updateTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(15) };
+            updateTimer.Tick += (_, _) => { if (vm.Idle && !vm.RestartReady) _ = vm.PrepareAutomaticUpdateAsync(); };
+            if (NativeSmoke.OutputPrefix is null) updateTimer.Start();
+            desktop.Exit += (_, _) => { updateTimer.Stop(); vm.Dispose(); };
         }
         base.OnFrameworkInitializationCompleted();
     }

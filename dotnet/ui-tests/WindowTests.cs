@@ -32,7 +32,12 @@ public sealed class WindowTests
             Dispatcher.UIThread.RunJobs(); Assert.Single(vm.VisibleTools);
             Assert.Equal("All categories", window.FindControl<ComboBox>("CategoryPicker")!.SelectedItem);
             Assert.NotNull(window.FindControl<ItemsControl>("ToolList")); Assert.Equal("BandMaster", vm.SelectedTool?.Name);
-            Assert.Equal(OperatingSystem.IsWindows(), vm.CanInstall);
+            Assert.True(vm.CanInstall); Assert.True(vm.Tools[0].CanUse); // Windows archives remain downloadable on Mac/Linux.
+            Assert.Contains("5.0.0.0", vm.News);
+            vm.NavigateCommand.Execute("Installed"); Dispatcher.UIThread.RunJobs();
+            Assert.True(window.FindControl<Button>("DashboardUpdateButton")!.IsEffectivelyVisible);
+            Assert.NotNull(window.FindControl<TextBlock>("LocalIpLabel"));
+            vm.NavigateCommand.Execute("Store");
             vm.Search = "nonexistent"; Assert.Empty(vm.VisibleTools); vm.Search = "Author"; Assert.Single(vm.VisibleTools);
             await vm.FavouriteCommand.ExecuteAsync(null); Dispatcher.UIThread.RunJobs(); Assert.True(vm.SelectedTool!.IsFavourite);
             Assert.NotNull(vm.SelectedPackage);
@@ -45,6 +50,12 @@ public sealed class WindowTests
                 vm.NavigateCommand.Execute(page); Dispatcher.UIThread.RunJobs();
                 if (output is not null) window.CaptureRenderedFrame()?.Save(Path.Combine(output, page.ToLowerInvariant() + ".png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
             }
+            window.FindControl<Button>("AssistantButton")!.Command!.Execute(null); Dispatcher.UIThread.RunJobs();
+            var assistantWindow = window.OwnedWindows.OfType<AssistantWindow>().Single();
+            Assert.True(assistantWindow.IsVisible);
+            vm.Query = "hello"; await vm.RecommendCommand.ExecuteAsync(null);
+            Assert.Contains("You: hello", vm.AssistantConversation); Assert.Contains("Welcome", vm.AssistantConversation);
+            assistantWindow.Close();
             vm.NavigateCommand.Execute("Installed"); Assert.Empty(vm.VisibleTools);
             vm.NavigateCommand.Execute("Store"); Assert.Single(vm.VisibleTools);
         }

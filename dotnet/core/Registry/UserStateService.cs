@@ -14,7 +14,9 @@ public sealed class UserStateService(AppStorage storage)
         var name = assembly.GetManifestResourceNames().Single(n => n.EndsWith(file, StringComparison.Ordinal));
         using var stream = assembly.GetManifestResourceStream(name)!;
         using var reader = new StreamReader(stream);
-        return reader.ReadToEnd().Replace("{{APP_VERSION}}", assembly.GetName().Version?.ToString(3) ?? "0.1.0");
+        using var versionStream = assembly.GetManifestResourceStream(assembly.GetManifestResourceNames().Single(n => n.EndsWith("version.json", StringComparison.Ordinal)))!;
+        using var version = System.Text.Json.JsonDocument.Parse(versionStream);
+        return reader.ReadToEnd().Replace("{{APP_VERSION}}", version.RootElement.GetProperty("version").GetString());
     }
     private readonly SemaphoreSlim gate = new(1, 1);
     public async Task<UserSettings> SettingsAsync(CancellationToken token = default) => await storage.ReadAsync<UserSettings>("settings.json", token) ?? new();

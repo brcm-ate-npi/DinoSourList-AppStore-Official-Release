@@ -12,6 +12,8 @@ public sealed class AppUpdateService
     private readonly SemaphoreSlim gate = new(1, 1);
     private UpdateManager? manager;
     private UpdateInfo? available;
+    public bool RestartReady => manager?.UpdatePendingRestart is not null;
+    public string? AvailableVersion => available?.TargetFullRelease.Version.ToString();
     public static string Version => typeof(AppUpdateService).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.1.0";
     public static IUpdateSource Source(string feed)
     {

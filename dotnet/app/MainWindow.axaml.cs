@@ -11,6 +11,7 @@ namespace DinoSaurList;
 
 public sealed partial class MainWindow : Window
 {
+    private Window? assistantWindow;
     public MainWindow()
     {
         InitializeComponent();
@@ -19,6 +20,13 @@ public sealed partial class MainWindow : Window
         {
             if (DataContext is not MainViewModel vm) return;
             vm.WindowWidth = ClientSize.Width > 0 ? ClientSize.Width : Width;
+            vm.AssistantRequested += () =>
+            {
+                if (assistantWindow is not null) { assistantWindow.Activate(); return; }
+                assistantWindow = new AssistantWindow(vm);
+                assistantWindow.Closed += (_, _) => assistantWindow = null;
+                assistantWindow.Show(this);
+            };
             UsefulLinksViewer.Content = DocumentWindow.CreateViewer(UserStateService.UsefulLinks);
             NewsViewer.Content = DocumentWindow.CreateViewer(vm.News);
             vm.PropertyChanged += (_, change) => { if (change.PropertyName == nameof(vm.News)) NewsViewer.Content = DocumentWindow.CreateViewer(vm.News); };

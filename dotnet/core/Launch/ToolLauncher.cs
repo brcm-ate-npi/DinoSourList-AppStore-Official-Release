@@ -7,7 +7,7 @@ public interface IToolLauncher
 {
     Task RunAsync(string root, string relative, bool wait, CancellationToken token);
 }
-public sealed class ToolLauncher : IToolLauncher
+public sealed class ToolLauncher(Func<ProcessStartInfo, Process?>? startProcess = null) : IToolLauncher
 {
     public static string Platform => OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsMacOS() ? "macos" : "linux";
     public static ProcessStartInfo StartInfo(string root, string relative, string platform, bool wait)
@@ -31,8 +31,9 @@ public sealed class ToolLauncher : IToolLauncher
     }
     public async Task RunAsync(string root, string relative, bool wait, CancellationToken token)
     {
-        var info = StartInfo(root, relative, Platform, wait);
-        using var process = Process.Start(info) ?? throw new IOException("The application could not be started.");
+        // ShellExecute, file associations and antivirus checks may block before returning a process.
+        using var process = await Task.Run(() => (startProcess ?? Process.Start)(StartInfo(root, relative, Platform, wait))
+            ?? throw new IOException("The application could not be started."), token).ConfigureAwait(false);
         if (!wait) return;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromMinutes(15));

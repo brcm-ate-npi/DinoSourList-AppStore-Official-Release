@@ -1,4 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup><PackageReference Include="Velopack" Version="1.2.161" /></ItemGroup>
-  <ItemGroup><EmbeddedResource Include="../../News/news.md" Link="Assets/news.md" /><EmbeddedResource Include="../../News/link.md" Link="Assets/link.md" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../config-record/version.json" Link="Assets/version.json" /><EmbeddedResource Include="../../News/news.md" Link="Assets/news.md" /><EmbeddedResource Include="../../News/link.md" Link="Assets/link.md" /></ItemGroup>
 <ItemGroup><EmbeddedResource Include="Assistant/Data/*.gz" /><None Include="Assistant/Licenses/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/%(Filename)%(Extension)" /></ItemGroup><ItemGroup><None Include="../Licenses/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/ThirdParty/%(RecursiveDir)%(Filename)%(Extension)" /></ItemGroup></Project>

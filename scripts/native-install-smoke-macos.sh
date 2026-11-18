@@ -64,3 +64,19 @@ cli="$(dirname "$app")/DinoSaurList.Cli"
 "$cli" catalogue --data-dir "$DINOSAURLIST_DATA_DIR" > "$evidence/installed-cli.json"
 "$cli" chat --query Preview --data-dir "$DINOSAURLIST_DATA_DIR" > "$evidence/installed-assistant.json"
 grep -q Preview "$evidence/installed-assistant.json"
+# Exercise a real Windows archive download through the installed Core/CLI on macOS.
+# It must not try to install or execute the Windows package.
+download_data="$RUNNER_TEMP/native-mac-download-proof-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+"$cli" catalogue --refresh --data-dir "$download_data" > "$evidence/mac-live-catalogue.json"
+tool_id=$(python3 - "$evidence/mac-live-catalogue.json" <<'PY'
+import json,sys
+catalogue=json.load(open(sys.argv[1]))
+print(next(t['id'] for t in catalogue['tools'] if t['name']=='PasswordGeneration'))
+PY
+)
+"$cli" download --tool "$tool_id" --data-dir "$download_data" > "$evidence/mac-downloaded-package.json"
+downloaded=$(plutil -extract path raw -o - "$evidence/mac-downloaded-package.json")
+[ -s "$downloaded" ] || { echo 'Real archive download missing on macOS'; exit 1; }
+unzip -t "$downloaded" > "$evidence/mac-downloaded-package-zip.txt"
+"$cli" installed --data-dir "$download_data" > "$evidence/mac-download-not-installed.json"
+grep -Eq '^\[\]$' "$evidence/mac-download-not-installed.json"

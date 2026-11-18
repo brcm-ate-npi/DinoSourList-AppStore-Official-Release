@@ -19,11 +19,18 @@ public sealed partial class ToolCardViewModel(ToolEntry tool, List<InstalledTool
     public bool IsDashboard => Owner?.Page == "Installed";
     [ObservableProperty] private InstalledTool? selectedCardInstallation;
     public string PrimaryAction => MatchingInstallation is not null ? "Open" : "Download";
-    public bool CanUse => Owner?.Idle == true && (MatchingInstallation is not null || (!IsDashboard && CanInstall));
+    public bool CanUse => Owner?.Idle == true && (MatchingInstallation is not null || (!IsDashboard && Packages.Count > 0));
     [ObservableProperty] private ToolPackage? selectedCardPackage = tool.Packages.FirstOrDefault();
     partial void OnSelectedCardPackageChanged(ToolPackage? value) => NotifyLayout();
     partial void OnSelectedCardInstallationChanged(InstalledTool? value) => NotifyLayout();
     public void NotifyLayout() { OnPropertyChanged(nameof(IsListView)); OnPropertyChanged(nameof(CardHeight)); OnPropertyChanged(nameof(CardWidth)); OnPropertyChanged(nameof(PrimaryAction)); OnPropertyChanged(nameof(IsDashboard)); OnPropertyChanged(nameof(CanUse)); }
+    public bool HasUpdate => CanInstall && Installed is not null && ToolVersion.Compare(Version, Installed.Version) > 0;
+    [RelayCommand] private async Task UpdateAsync()
+    {
+        if (Owner is null || !HasUpdate) return;
+        Owner.SelectCard(this); Owner.SelectedPackage = Packages.First(p => p.Platform == "any" || p.Platform == ToolLauncher.Platform);
+        await Owner.InstallCommand.ExecuteAsync(null);
+    }
     [RelayCommand] private void Details() => Owner?.SelectCard(this, true);
     [RelayCommand] private async Task ReadmeAsync() { if (Owner is null) return; Owner.SelectCard(this); await Owner.ReadmeCommand.ExecuteAsync(null); }
     [RelayCommand] private async Task FavouriteAsync() { if (Owner is null) return; Owner.SelectCard(this); await Owner.FavouriteCommand.ExecuteAsync(null); }
