@@ -3,6 +3,8 @@
 set -euo pipefail
 source_dir="$(realpath "${1:?release asset directory required}")"
 target_dir="${2:-/var/www/dinosaurlist}"
+# Verify both packages completely before exposing any new server feed or package bytes.
+python3 "$(dirname "$0")/verify-native-feed.py" "$source_dir" "${3:-}"
 mkdir -p "$target_dir"
 chmod 755 "$target_dir"
 # Upload package bytes before publishing a feed referencing them. Rename each file atomically.
