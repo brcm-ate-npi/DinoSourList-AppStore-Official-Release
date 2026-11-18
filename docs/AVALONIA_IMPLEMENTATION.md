@@ -101,3 +101,13 @@ Windows interactive proof is currently externally blocked: run 44261449070 enume
 
 
 The Linux screenshot upload is diagnostic only and no longer prevents native builds after successful full tests if GitHub storage is unreachable. Package uploads, installed UI checks and the real interactive tool gate remain required. On npiftp-kor-wsd-01, the storage hostname sometimes resolves to 135.130.* addresses that return no route to host; its official 20.209.* answers passed a TLS/HTTP reachability check. No system DNS/firewall changes or static IP pinning were applied. Release publication still fails if its required artifacts cannot be fetched.
+
+## Native user-flow corrections (2026-11-18, preview .14)
+
+The Local Dashboard now exposes application release status and an Update application action. Startup and 15-minute checks download new releases in the background; the dashboard offers Restart to update when a verified package is ready. Explicit Update application checks/downloads and restarts in one action. Restart is blocked during a tool operation. `update-status.json` records the latest background result; the main-branch source updater is not invoked. Tool cards independently expose Update for newer compatible tool packages.
+
+Shell/process startup and README NLP calculations run off the UI thread. The Python-style non-modal AI assistant retains conversation history, accepts Enter to send, and links recommendations to the Store. The sidebar restores local IPv4 and user/download/store/category vector icons. News reads the original main-branch Markdown and version metadata (currently `5.0.0.0`), with a bundled/cache fallback and preserved local edits. Refresh and Reset to official news are available.
+
+Windows archives remain downloadable on macOS/Linux. This uses Core `PackageDownloadService` and CLI `download`, preserves checksum validation, opens the saved archive folder, and does not run unsupported installers. Installation/execution compatibility remains separate from downloading.
+
+The complete Core/CLI/UI suite at `37a578c` has 51 passing tests, including slow process startup, cross-platform Windows archive downloads, source-version news/cache/local-edit behavior, dashboard controls and an actual assistant conversation window. Native release verification captures dashboard/assistant/news views and downloads a real PasswordGeneration archive on the Mac runner. See release run `44268373026` for actual packaging/deployment results; these tests do not establish full legacy parity or every user's system-install update permissions.
