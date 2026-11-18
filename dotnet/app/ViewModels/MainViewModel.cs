@@ -20,6 +20,8 @@ using DinoSaurList.Core.Updates;
 
 namespace DinoSaurList.ViewModels;
 
+public sealed record ContributionCell(string Label, string Colour);
+
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     public AppStorage Storage { get; }
@@ -45,6 +47,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<string> Categories { get; } = ["All categories"];
     public ObservableCollection<string> Authors { get; } = [];
     public ObservableCollection<string> Logs { get; } = [];
+    public ObservableCollection<ContributionCell> ContributionDays { get; } = [];
     public ObservableCollection<Recommendation> Recommendations { get; } = [];
     public string AppVersion => AppUpdateService.Version;
     public string DataDirectory => Storage.Root;
@@ -68,10 +71,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string profileLinksText = "";
     [ObservableProperty] private Bitmap? profilePhoto;
     [ObservableProperty] private string jiraUrl = "";
+    [ObservableProperty] private int contributionYear = DateTime.Today.Year;
+    [ObservableProperty] private string contributionSummary = "Refresh the catalogue to load Box upload/edit dates.";
     [ObservableProperty] private string profileActivity = "";
     [ObservableProperty] private string boxManagerUrl = "";
     [ObservableProperty] private string updateFeedUrl = "";
     [ObservableProperty] private string theme = "System";
+    [ObservableProperty] private int refreshMode = 1;
+    [ObservableProperty] private string refreshSelectedFolders = "";
     [ObservableProperty] private string legacyRoot = "";
     [ObservableProperty] private string legacySummary = "Preview old installations and favourites before importing. Existing folders are linked in place and never deleted.";
     [ObservableProperty] private string updateStatus = "";
@@ -105,7 +112,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public async Task InitializeAsync() => await GuardAsync(async token =>
     {
         settings = await state.SettingsAsync(token);
-        BoxManagerUrl = settings.BoxManagerUrl; UpdateFeedUrl = settings.UpdateFeedUrl; Theme = settings.Theme;
+        BoxManagerUrl = settings.BoxManagerUrl; UpdateFeedUrl = settings.UpdateFeedUrl; Theme = settings.Theme; RefreshMode = settings.RefreshMode; RefreshSelectedFolders = string.Join(", ", settings.RefreshSelectedFolders ?? []);
         ProfileName = settings.ProfileName; ProfileMessage = settings.ProfileMessage; JiraUrl = settings.JiraUrl;
         ApplyTheme(); ConfigureClient();
         favourites = await state.FavouritesAsync(token);
@@ -125,7 +132,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         foreach (var value in allTools.Select(t => t.Author).Distinct().Order()) Authors.Add(value);
         SelectedTool = Tools.FirstOrDefault(t => t.Id == current) ?? Tools.FirstOrDefault();
         assistant.Index(allTools.Select(t => (t, readmes.GetValueOrDefault(t.Id, ""))));
-        NotifyTools();
+        NotifyTools(); BuildContributions();
     }
     private void NotifyTools()
     {
@@ -167,6 +174,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
     [RelayCommand] private void Navigate(string value) => Page = value;
     [RelayCommand] private void ShowFavourites() { FavouritesOnly = true; Page = "Store"; }
+    [RelayCommand] private void UsefulLinks() => DocumentRequested?.Invoke("Useful links", UserStateService.UsefulLinks);
     [RelayCommand] private void PreviewNews() => DocumentRequested?.Invoke("News & updates", News);
     [RelayCommand]
     private async Task GuideAsync() => await GuardAsync(async token =>
@@ -179,7 +187,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private async Task PinVersionAsync() => await GuardAsync(async token =>
     {
         if (SelectedInstallation is not { } tool) return;
-        await state.PinAsync(tool, token);
+        await installedTools.ActivateAsync(tool, token);
         await RebuildAsync(token); Status = $"Default version is now {tool.Version}.";
     });
     public Func<string, Task<bool>>? ConfirmRequested { get; set; }
@@ -197,7 +205,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task RefreshAsync() => await GuardAsync(async token =>
     {
-        var result = await catalogue.RefreshAsync(new Progress<string>(s => Status = s), token);
+        var result = await catalogue.RefreshAsync(new Progress<string>(s => Status = s), token, new(RefreshMode, RefreshSelectedFolders.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)));
         allTools = result.Tools; await RebuildAsync(token); Status = $"{allTools.Count} tools refreshed. {result.Warnings.Count} warnings.";
         foreach (var warning in result.Warnings) Log(warning);
     });
@@ -275,6 +283,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         await profiles.SaveAsync(new(ProfileName, ProfileMessage, DateTimeOffset.UtcNow.ToString("O"), links), token);
         Status = "Profile and links saved to Box.";
     });
+    partial void OnProfileNameChanged(string value) => BuildContributions();
+    partial void OnContributionYearChanged(int value) => BuildContributions();
+    private void BuildContributions()
+    {
+        if (ContributionYear is < 1970 or > 9998) return;
+        ContributionDays.Clear();
+        var days = ContributionService.Calendar(allTools, ProfileName, ContributionYear);
+        foreach (var day in days)
+            ContributionDays.Add(new($"{day.Date:yyyy-MM-dd}: {day.Count} events\n" + string.Join('\n', day.Events.Select(e => e.Kind + " " + e.Tool + "/" + e.File)), day.Count switch { 0 => "#E4EAF0", 1 => "#9ECEFF", < 4 => "#559BEE", < 8 => "#276CC1", _ => "#124580" }));
+        ContributionSummary = $"{ProfileName}: {days.Sum(d => d.Count)} Box upload/edit events in {ContributionYear}. These are catalogue dates, not local launch counts.";
+    }
     public Func<Task<string?>>? PhotoPicker { get; set; }
     [RelayCommand]
     private async Task ChangePhotoAsync() => await GuardAsync(async token =>
@@ -297,7 +316,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         using var validationClient = new HttpClient();
         _ = new BoxManagerClient(validationClient, BoxManagerUrl); // Validate before replacing the active configuration.
         if (!Uri.TryCreate(UpdateFeedUrl, UriKind.Absolute, out var feed) || feed.Scheme != "https") throw new ArgumentException("Update feed must use HTTPS.");
-        settings = settings with { BoxManagerUrl = BoxManagerUrl, UpdateFeedUrl = UpdateFeedUrl, Theme = Theme, ProfileName = ProfileName, ProfileMessage = ProfileMessage, JiraUrl = JiraUrl };
+        settings = settings with { BoxManagerUrl = BoxManagerUrl, UpdateFeedUrl = UpdateFeedUrl, Theme = Theme, ProfileName = ProfileName, ProfileMessage = ProfileMessage, JiraUrl = JiraUrl, RefreshMode = RefreshMode, RefreshSelectedFolders = RefreshSelectedFolders.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList() };
         await state.SaveSettingsAsync(settings, token); ConfigureClient(); ApplyTheme(); Status = "Settings and local profile saved.";
     });
     partial void OnThemeChanged(string value) => ApplyTheme();

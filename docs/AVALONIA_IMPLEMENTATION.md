@@ -32,17 +32,21 @@ Data defaults to per-user LocalApplicationData/DinoSaurList, outside the install
 
 | Behavior | Current evidence | Remaining gate before replacing legacy |
 |---|---|---|
-| Live catalogue, version/Flow metadata | 28 live tools, 108 packages with SHA1; 49 Python version comparisons, 4 installed folder contracts, 28 Flow contracts | Refresh-select/new-only modes and nested metadata traversal |
+| Live catalogue, version/Flow metadata | 28 live tools, 108 packages with SHA1; 49 Python version comparisons, 4 installed folder contracts, 28 Flow contracts | Native Windows/macOS workflow verification of refresh modes (all/select/metadata/new-only are implemented with cache-preservation tests and depth-3 metadata traversal) |
 | Streaming downloads and ZIP extraction | Bad checksum/truncation, traversal and archive symlink rejection tests | Large real Windows package/network interruption workflow |
 | Install/update/downgrade | Stable final working directory, old records retained on failed installer; MSI previous uninstall and Flow Delete implemented | Real MSI cancellation/reboot/rollback cases, protected Python env reuse; external installer side effects cannot be rolled back by JSON transaction |
 | Windows shortcuts / execution | Platform selection and literal path arguments; COM shortcut integration | Real Windows .cmd/.exe/.msi/.lnk interaction |
 | macOS | Native host builds and runs only tools that declare macOS support | All 28 current tools omit Platform and default to Windows; Mac-supported tool inventory and Intel build requirement need confirmation |
 | Favourites, default version, removal, settings, news | Shared CLI/UI Core state tests; legacy installation/favourites import preserves original files | Import legacy rich HTML news/settings/local profile data; full rich Markdown/HTML rendering parity |
-| Profiles/photos | Legacy-compatible Box JSON names and payload tests; shared upload transport | Real write test on dedicated profile; shared Box contribution calendar and Useful Links view |
+| Profiles/photos | Legacy-compatible Box JSON names and payload tests; shared upload transport | Real write test on dedicated profile; Dedicated profile write test; manual activity import and calendar visual comparison (native calendar now uses actual Box created/modified dates; Useful Links is bundled) |
 | Assistant | Native TF-IDF retrieval smoke test, no fabricated tool responses | Old NLTK POS/WordNet/Porter preprocessing and conversational templates are not yet equivalent; compare a real query corpus before acceptance |
 | Logs/activity | Bounded in-memory operation log, persistent local action history | Existing persistent log viewer/telemetry and shared contribution date parity |
-| Updates / previous install transition | Velopack server-source lifecycle, parallel read-only legacy linking | Signed/native installer + feed check/download/restart on Windows and Mac; rollback release selection |
+| Updates / previous install transition | Velopack server-source lifecycle, parallel read-only legacy linking | Native CI now installs both setup artifacts and captures real UI/CLI evidence; inspect that run, then validate signed production feed check/download/restart and rollback release selection |
 
 Legacy telemetry remains disabled: copying its hardcoded password or unrestricted SQL contract would not preserve a safe native architecture. Define an authenticated, limited replacement contract before enabling reporting. Existing legacy source credentials require separate owner rotation; this branch neither copies nor rotates them.
 
 A package build, a unit test or a Linux rendered screenshot is evidence for that specific check, not evidence of a successful Windows/macOS installer/update workflow. Keep this matrix open until those workflows and remaining feature contracts are exercised.
+
+## Preview evidence
+
+`7527f82` passed the GitHub-hosted Linux/Windows/macOS pipeline and produced Windows-x64/macOS-arm64 Velopack preview artifacts: https://github.com/brcm-ate-npi/DinoSourList-AppStore-Official-Release/actions/runs/44240017924. This validates compilation, 30 tests on Linux/macOS (Windows skips Unix symlink creation) and packaging. It does not validate interactive installer/update behavior. The next revision adds refresh-mode cache tests (32 total local cases).

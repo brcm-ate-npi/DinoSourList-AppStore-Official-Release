@@ -21,9 +21,11 @@ public sealed class InstallationStore(AppStorage storage)
     public async Task RemoveAsync(InstalledTool tool, CancellationToken token = default)
     {
         await gate.WaitAsync(token);
-        try { var tools = await LoadAsync(token); tools.RemoveAll(t => t == tool); await storage.WriteAsync("installed.json", tools, token); }
+        try { var tools = await LoadAsync(token); tools.RemoveAll(t => Same(t, tool)); await storage.WriteAsync("installed.json", tools, token); }
         finally { gate.Release(); }
     }
+    public static bool Same(InstalledTool left, InstalledTool right) => left.ToolId == right.ToolId && left.Version == right.Version
+        && Path.GetFullPath(left.Directory).Equals(Path.GetFullPath(right.Directory), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
     public static InstalledTool? LatestFor(IEnumerable<InstalledTool> tools, string id) => tools.Where(t => t.ToolId == id)
         .OrderByDescending(t => t.Version, ToolVersion.Comparer).FirstOrDefault();
 }

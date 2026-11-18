@@ -5,6 +5,16 @@ namespace DinoSaurList.Core.Registry;
 
 public sealed class DocumentationService(IBoxClient box, AppStorage storage)
 {
+    public async Task<string?> IconAsync(ToolEntry tool, CancellationToken token = default)
+    {
+        var file = tool.FindFile(tool.Flow.Get("icon", "name", "icon.ico"));
+        if (!tool.Flow.Flag("icon", "flag") || file?.Sha1 is not { Length: 40 } hash || !hash.All(char.IsAsciiHexDigit)) return null;
+        if (file.Size is > 8 * 1024 * 1024) throw new InvalidDataException("Tool icon exceeds 8 MiB.");
+        var folder = Path.Combine(storage.Root, "Icons"); Directory.CreateDirectory(folder);
+        var target = SafePaths.Within(folder, SafePaths.ToolId(file.Id) + "-" + hash + Path.GetExtension(file.Name));
+        if (!File.Exists(target)) await box.DownloadAsync(file, target, null, token);
+        return target;
+    }
     public async Task<string> GuideAsync(ToolEntry tool, CancellationToken token = default)
     {
         var file = tool.FindFile(tool.Flow.Get("guide", "file")) ?? throw new FileNotFoundException("No guide is listed for this tool.");

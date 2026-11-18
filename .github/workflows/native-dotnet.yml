@@ -1,9 +1,9 @@
 name: Native DinoSaurList
 on:
   push:
-    paths: ['dotnet/**', '.github/workflows/native-dotnet.yml', '.config/dotnet-tools.json', 'News/news.md', 'scripts/check-native-secrets.py']
+    paths: ['dotnet/**', '.github/workflows/native-dotnet.yml', '.config/dotnet-tools.json', 'News/news.md', 'scripts/check-native-secrets.py', 'scripts/native-install-smoke.ps1', 'News/link.md']
   pull_request:
-    paths: ['dotnet/**', '.github/workflows/native-dotnet.yml', 'scripts/check-native-secrets.py']
+    paths: ['dotnet/**', '.github/workflows/native-dotnet.yml', 'scripts/check-native-secrets.py', 'scripts/native-install-smoke.ps1', 'News/link.md']
   workflow_dispatch:
     inputs:
       version:
@@ -51,6 +51,7 @@ jobs:
             exe: DinoSaurList
             channel: osx-preview
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -98,6 +99,15 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: dotnet vpk pack --packId DinoSaurList --packTitle DinoSaurList --packVersion "$NATIVE_VERSION" --packDir publish --mainExe DinoSaurList --icon DinoSaurList.icns --channel osx-preview
+      - name: Install preview and exercise native UI and CLI
+        shell: pwsh
+        run: ./scripts/native-install-smoke.ps1 -OperatingSystem '${{ runner.os }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installed-ui-${{ matrix.rid }}
+          path: ${{ runner.temp }}/native-installed-evidence
+          if-no-files-found: ignore
       - name: Verify generated native package contents
         shell: pwsh
         run: |

@@ -40,15 +40,21 @@ public sealed class InstallService(IBoxClient box, AppStorage storage, Installat
             Directory.Move(stage, target);
             var hooks = integration ?? new WindowsIntegration();
             var record = new InstalledTool(tool.Id, tool.FolderName, tool.Name, tool.Author, package.Version, target, execution, DateTimeOffset.UtcNow, Flow: tool.Flow);
+            var registered = false;
             try
             {
                 await hooks.BeforeInstallAsync(tool, previous, token);
                 // Run from the final directory: installers may persist their working directory.
                 if (tool.Flow.Flag("installation", "auto")) await launcher.RunAsync(target, installer, true, token);
                 await hooks.AfterInstallAsync(tool, target, execution, token);
-                await installed.AddAsync(record, token);
+                await installed.AddAsync(record, token); registered = true;
+                await new UserStateService(storage).PinAsync(record, token);
             }
-            catch { Directory.Move(target, stage); throw; }
+            catch
+            {
+                if (registered) await installed.RemoveAsync(record, CancellationToken.None);
+                Directory.Move(target, stage); throw;
+            }
             return record;
         }
         finally

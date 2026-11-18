@@ -23,13 +23,27 @@ public sealed class InstalledToolService(AppStorage storage, InstallationStore s
     }
     public async Task LaunchAsync(InstalledTool tool, CancellationToken token = default)
     {
-        if (!(await store.LoadAsync(token)).Contains(tool)) throw new InvalidOperationException("Version is not installed.");
+        if (!(await store.LoadAsync(token)).Any(t => InstallationStore.Same(t, tool))) throw new InvalidOperationException("Version is not installed.");
         await launcher.RunAsync(tool.Directory, tool.ExecutionFile, false, token);
         await new ActivityStore(storage).RecordAsync(tool.ToolId, "launch", token);
     }
+    public async Task ActivateAsync(InstalledTool tool, CancellationToken token = default)
+    {
+        if (!(await store.LoadAsync(token)).Any(t => InstallationStore.Same(t, tool))) throw new InvalidOperationException("Version is not installed.");
+        var previous = await FindOrDefaultAsync(tool.ToolId, token);
+        if (tool.Flow is { } flow && flow.Flag("installation", "auto"))
+        {
+            var installer = flow.Get("installation", "file");
+            if (string.IsNullOrEmpty(installer) || !File.Exists(SafePaths.Within(tool.Directory, installer))) throw new FileNotFoundException("The selected version's installer is unavailable.");
+            var entry = new ToolEntry(tool.ToolId, tool.FolderName, tool.Name, tool.Author, flow.Get("category", "cluster"), [], flow, []);
+            await (integration ?? new WindowsIntegration()).BeforeInstallAsync(entry, previous, token);
+            await launcher.RunAsync(tool.Directory, installer, true, token);
+        }
+        await new UserStateService(storage).PinAsync(tool, token);
+    }
     public async Task RemoveAsync(InstalledTool tool, CancellationToken token = default)
     {
-        if (!(await store.LoadAsync(token)).Contains(tool)) throw new InvalidOperationException("Version is not installed.");
+        if (!(await store.LoadAsync(token)).Any(t => InstallationStore.Same(t, tool))) throw new InvalidOperationException("Version is not installed.");
         if (tool.Imported) { await store.RemoveAsync(tool, token); return; }
         var expected = SafePaths.Within(Path.Combine(storage.Packages, SafePaths.ToolId(tool.ToolId)), tool.Version);
         if (!Path.GetFullPath(tool.Directory).Equals(expected, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)) throw new InvalidDataException("Refusing to remove an unmanaged directory.");

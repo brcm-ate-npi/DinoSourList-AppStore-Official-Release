@@ -6,16 +6,15 @@ namespace DinoSaurList.Core.Registry;
 /// <summary>Device-local state shared by every host. Views never write persistence files directly.</summary>
 public sealed class UserStateService(AppStorage storage)
 {
-    public static string BundledNews
+    public static string UsefulLinks => BundledDocument("link.md");
+    public static string BundledNews => BundledDocument("news.md");
+    private static string BundledDocument(string file)
     {
-        get
-        {
-            var assembly = typeof(UserStateService).Assembly;
-            var name = assembly.GetManifestResourceNames().Single(n => n.EndsWith("news.md", StringComparison.Ordinal));
-            using var stream = assembly.GetManifestResourceStream(name)!;
-            using var reader = new StreamReader(stream);
-            return reader.ReadToEnd().Replace("{{APP_VERSION}}", assembly.GetName().Version?.ToString(3) ?? "0.1.0");
-        }
+        var assembly = typeof(UserStateService).Assembly;
+        var name = assembly.GetManifestResourceNames().Single(n => n.EndsWith(file, StringComparison.Ordinal));
+        using var stream = assembly.GetManifestResourceStream(name)!;
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd().Replace("{{APP_VERSION}}", assembly.GetName().Version?.ToString(3) ?? "0.1.0");
     }
     private readonly SemaphoreSlim gate = new(1, 1);
     public async Task<UserSettings> SettingsAsync(CancellationToken token = default) => await storage.ReadAsync<UserSettings>("settings.json", token) ?? new();
@@ -25,6 +24,8 @@ public sealed class UserStateService(AppStorage storage)
         _ = new BoxManagerClient(validation, settings.BoxManagerUrl);
         if (!Uri.TryCreate(settings.UpdateFeedUrl, UriKind.Absolute, out var feed) || feed.Scheme != "https") throw new ArgumentException("Update feed must use HTTPS.");
         if (settings.Theme is not ("System" or "Dark" or "Light")) throw new ArgumentException("Theme must be System, Dark or Light.");
+        if (settings.RefreshMode is < 1 or > 4) throw new ArgumentException("Refresh mode must be 1–4.");
+        if (settings.RefreshMode == 2 && settings.RefreshSelectedFolders is not { Count: > 0 }) throw new ArgumentException("Select at least one refresh folder.");
         await storage.WriteAsync("settings.json", settings, token);
     }
     public async Task<HashSet<string>> FavouritesAsync(CancellationToken token = default) => new(await storage.ReadAsync<HashSet<string>>("favourites.json", token) ?? [], StringComparer.OrdinalIgnoreCase);
@@ -46,7 +47,7 @@ public sealed class UserStateService(AppStorage storage)
         await gate.WaitAsync(token);
         try
         {
-            if (!(await new InstallationStore(storage).LoadAsync(token)).Contains(tool)) throw new InvalidOperationException("Version is not installed.");
+            if (!(await new InstallationStore(storage).LoadAsync(token)).Any(t => InstallationStore.Same(t, tool))) throw new InvalidOperationException("Version is not installed.");
             var active = await ActiveVersionsAsync(token); active[tool.ToolId] = tool.Version;
             await storage.WriteAsync("active-versions.json", active, token);
         }

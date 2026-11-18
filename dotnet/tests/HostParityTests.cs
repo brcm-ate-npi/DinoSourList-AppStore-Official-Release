@@ -58,4 +58,28 @@ public sealed class HostParityTests
         await Assert.ThrowsAsync<ArgumentException>(() => state.SaveSettingsAsync(new(UpdateFeedUrl: "http://insecure.example/"), Token));
         Assert.Equal("Dark", (await state.SettingsAsync(Token)).Theme);
     }
+    private sealed class Installer : IToolLauncher
+    {
+        public bool Fail { get; set; }
+        public string? VersionPath { get; private set; }
+        public Task RunAsync(string root, string relative, bool wait, CancellationToken token)
+        {
+            VersionPath = root;
+            return Fail ? Task.FromException(new IOException("installer cancelled")) : Task.CompletedTask;
+        }
+    }
+    [Fact]
+    public async Task FailedRollbackKeepsPinnedVersionAndSuccessfulRollbackActivatesItsInstaller()
+    {
+        using var temp = new Temp(); var storage = new AppStorage(temp.Path); var store = new InstallationStore(storage);
+        var oldDirectory = Path.Combine(storage.Packages, "1", "1.0"); Directory.CreateDirectory(oldDirectory); File.WriteAllText(Path.Combine(oldDirectory, "setup.sh"), "installer");
+        var old = new InstalledTool("1", "Tool-A", "Tool", "A", "1.0", oldDirectory, "setup.sh", DateTimeOffset.UtcNow, Flow: FlowDocument.Parse("[Installation]\nauto=true\nfile=setup.sh"));
+        var current = old with { Version = "2.0" }; await store.AddAsync(old, Token); await store.AddAsync(current, Token);
+        var state = new UserStateService(storage); await state.PinAsync(current, Token);
+        var launcher = new Installer { Fail = true }; var service = new InstalledToolService(storage, store, launcher);
+        await Assert.ThrowsAsync<IOException>(() => service.ActivateAsync(old, Token));
+        Assert.Equal("2.0", (await service.FindAsync("1", token: Token)).Version);
+        launcher.Fail = false; await service.ActivateAsync(old, Token);
+        Assert.Equal(oldDirectory, launcher.VersionPath); Assert.Equal("1.0", (await service.FindAsync("1", token: Token)).Version);
+    }
 }

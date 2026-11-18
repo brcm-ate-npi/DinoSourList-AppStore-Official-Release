@@ -27,7 +27,7 @@ public static class CliApplication
             {
                 await output.WriteLineAsync("""
         DinoSaurList CLI — the same Core services as the Avalonia UI
-        catalogue [--refresh]                    List tool metadata (cache first)
+        catalogue [--refresh] [--mode 1..4] [--selected FOLDER,FOLDER]                    List tool metadata (cache first)
         readme --tool ID                         Print the tool README
         guide --tool ID                          Download the guide and print its path
         recommend --query TEXT                   Rank tools using their READMEs
@@ -35,6 +35,7 @@ public static class CliApplication
         install --tool ID [--version VERSION]    Download, verify and install a package
         launch --tool ID [--version VERSION]     Start the pinned/latest installed version
         pin --tool ID --version VERSION         Set the default installed version
+                activate --tool ID --version VERSION --yes  Re-run installer for update/downgrade, then pin
         remove --tool ID --version VERSION --yes Remove managed files / forget imported version
         favourites [--tool ID --set true|false]  List or update favourites
         import-preview --root DIR               Inspect a legacy installation
@@ -43,7 +44,8 @@ public static class CliApplication
         news [--file MARKDOWN | --reset]         Read, edit or reset local news
         profile --author NAME [--file JSON]      Read or save a shared Box profile
         photo --author NAME [--file PNG]         Read or save a shared Box photo
-        activity                                List this device's recorded actions
+        links                                   Print bundled useful links
+                activity                                List this device's recorded actions
         update [--download | --apply --yes]      Check, download or apply an app update
         All commands: --data-dir DIR, --server HTTPS_URL
         Removal honors Flow Delete on Windows; forgetting an imported version preserves its original files.
@@ -56,7 +58,7 @@ public static class CliApplication
             var catalogue = new CatalogueService(box, storage); var installations = new InstallationStore(storage);
             var launcher = new ToolLauncher(); var installed = new InstalledToolService(storage, installations, launcher);
             Task<CatalogueSnapshot> Catalogue() => LoadCatalogueAsync();
-            async Task<CatalogueSnapshot> LoadCatalogueAsync() => args.Contains("--refresh") ? await catalogue.RefreshAsync(null, token) : await catalogue.LoadCacheAsync(token) ?? await catalogue.RefreshAsync(null, token);
+            async Task<CatalogueSnapshot> LoadCatalogueAsync() => args.Contains("--refresh") ? await catalogue.RefreshAsync(null, token, new(int.Parse(Option("--mode") ?? settings.RefreshMode.ToString()), Option("--selected")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? settings.RefreshSelectedFolders?.ToArray())) : await catalogue.LoadCacheAsync(token) ?? await catalogue.RefreshAsync(null, token);
             async Task<ToolEntry> Tool() => (await Catalogue()).Tools.SingleOrDefault(t => t.Id == Required("--tool")) ?? throw new ArgumentException("Unknown tool ID.");
             void Confirm() { if (!args.Contains("--yes")) throw new ArgumentException("This operation requires --yes."); }
             switch (command)
@@ -78,6 +80,8 @@ public static class CliApplication
                     var target = await installed.FindAsync(Required("--tool"), Option("--version"), token); await installed.LaunchAsync(target, token); Json(new { launched = target }); break;
                 case "pin":
                     var pinned = await installed.FindAsync(Required("--tool"), Required("--version"), token); await state.PinAsync(pinned, token); Json(pinned); break;
+                case "activate":
+                    Confirm(); var activated = await installed.FindAsync(Required("--tool"), Required("--version"), token); await installed.ActivateAsync(activated, token); Json(activated); break;
                 case "remove":
                     Confirm(); var removed = await installed.FindAsync(Required("--tool"), Required("--version"), token); await installed.RemoveAsync(removed, token); Json(new { removed }); break;
                 case "favourites":
@@ -105,6 +109,8 @@ public static class CliApplication
                     var photos = new DeveloperProfiles(box, storage); var photoAuthor = Required("--author");
                     if (Option("--file") is { } photoFile) await photos.SavePhotoAsync(photoAuthor, await File.ReadAllBytesAsync(photoFile, token), token);
                     Json(new { path = await photos.LoadPhotoAsync(photoAuthor, token) }); break;
+                case "links": await output.WriteLineAsync(UserStateService.UsefulLinks); break;
+                case "contributions": Json(ContributionService.Calendar((await Catalogue()).Tools, Required("--author"), int.Parse(Option("--year") ?? DateTime.Today.Year.ToString()))); break;
                 case "activity": Json(await new ActivityStore(storage).LoadAsync(token)); break;
                 case "update":
                     var updater = new AppUpdateService(); var status = await updater.CheckAsync(settings.UpdateFeedUrl);

@@ -7,7 +7,9 @@ public sealed record BoxItem(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("size")] long? Size = null,
-    [property: JsonPropertyName("sha1")] string? Sha1 = null);
+    [property: JsonPropertyName("sha1")] string? Sha1 = null,
+    [property: JsonPropertyName("created_at")] DateTimeOffset? CreatedAt = null,
+    [property: JsonPropertyName("modified_at")] DateTimeOffset? ModifiedAt = null);
 
 public sealed record ToolPackage(string FileId, string FileName, string Version, long? Size, string? Sha1, string Platform = "windows");
 public sealed record ToolEntry(string Id, string FolderName, string Name, string Author,

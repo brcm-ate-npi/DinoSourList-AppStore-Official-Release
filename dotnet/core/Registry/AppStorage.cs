@@ -34,4 +34,4 @@ public sealed class AppStorage
 
 public sealed record UserSettings(string BoxManagerUrl = "https://npi-service.kor.broadcom.net/api/box-manager/",
     string UpdateFeedUrl = "https://npi-service.kor.broadcom.net/dinosaurlist/", string Theme = "System",
-    string Language = "en", string ProfileName = "", string ProfileMessage = "", string JiraUrl = "");
+    string Language = "en", string ProfileName = "", string ProfileMessage = "", string JiraUrl = "", int RefreshMode = 1, List<string>? RefreshSelectedFolders = null);
