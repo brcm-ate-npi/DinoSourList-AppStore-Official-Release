@@ -12,8 +12,10 @@ using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
 http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 http.DefaultRequestHeaders.UserAgent.ParseAdd("DinoSaurList-Release-CI/1.0");
 http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
-var api = $"https://api.github.com/repos/{repository}/releases/tags/{Uri.EscapeDataString(tag)}";
-async Task<JsonObject> Release() => JsonNode.Parse(await http.GetStringAsync(api))!.AsObject();
+// The tag endpoint omits drafts; list authenticated drafts, then select this exact tag.
+var api = $"https://api.github.com/repos/{repository}/releases?per_page=100";
+async Task<JsonObject> Release() => JsonNode.Parse(await http.GetStringAsync(api))!.AsArray()
+    .Single(r => r!["tag_name"]!.GetValue<string>() == tag)!.AsObject();
 var release = await Release();
 if (release["draft"]?.GetValue<bool>() != true || release["target_commitish"]?.GetValue<string>() != sha)
     throw new InvalidOperationException("Only a draft for this exact commit can receive assets.");
