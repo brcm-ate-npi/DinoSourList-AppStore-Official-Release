@@ -11,6 +11,7 @@ rm -rf publish Releases DinoSaurList.iconset
 # App and CLI share the installation/runtime/updater location.
 dotnet publish dotnet/app/DinoSaurList.App.csproj -c Release -r osx-arm64 --self-contained true -p:Version="$version" -o publish
 dotnet publish dotnet/cli/DinoSaurList.Cli.csproj -c Release -r osx-arm64 --self-contained true -p:Version="$version" -o publish
+./scripts/patch-macos-corevideo.sh publish
 mkdir -p publish/Licenses/DotNet
 cp "$DOTNET_ROOT/LICENSE.txt" "$DOTNET_ROOT/ThirdPartyNotices.txt" publish/Licenses/DotNet/
 mkdir -p DinoSaurList.iconset

@@ -32,7 +32,7 @@ for path in [* (root / 'dotnet').rglob('*'), * (root / '.github' / 'workflows').
         if any(p.search(gzip.decompress(path.read_bytes())) for p in patterns):
             failed.append(str(path.relative_to(root)))
         continue
-    if path.suffix not in {'.cs', '.json', '.csproj', '.props', '.targets', '.axaml', '.yml'}:
+    if path.suffix not in {'.cs', '.json', '.csproj', '.props', '.targets', '.axaml', '.yml', '.c', '.h'}:
         continue
     body = path.read_bytes()
     if any(p.search(body) for p in patterns):
