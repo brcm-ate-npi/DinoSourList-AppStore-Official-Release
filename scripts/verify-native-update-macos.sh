@@ -22,6 +22,7 @@ manifest=$(find "$app/Contents" -name sq.version -print -quit)
 [ -f "$manifest" ] || { echo 'Published app manifest missing'; exit 1; }
 cp "$manifest" "$evidence/before.version.xml"
 grep -F "$old" "$manifest" >/dev/null
+if pgrep -x DinoSaurList >/dev/null; then echo 'An existing DinoSaurList is running; refusing to disturb its shared update cache.'; exit 1; fi
 # Cache is shared by bundle ID. Preserve it without deleting any pre-existing cache files.
 cache="$HOME/Library/Caches/velopack/DinoSaurListNative"
 lease="${cache}.proof-lease"
@@ -90,6 +91,11 @@ for ((second=0;second<90;second++)); do
 done
 grep -F "$version" "$manifest" >/dev/null || { echo 'Next-start automatic application failed'; exit 1; }
 cp "$manifest" "$evidence/after.version.xml"
+for ((second=0;second<60;second++)); do
+  if ! pgrep -f "UpdateMac.*$proof/install/" >/dev/null; then break; fi
+  sleep 1
+done
+if pgrep -f "UpdateMac.*$proof/install/" >/dev/null; then echo 'Updater is still applying the package'; exit 1; fi
 stop_app
 start_app capture
 for ((second=0;second<60;second++)); do
