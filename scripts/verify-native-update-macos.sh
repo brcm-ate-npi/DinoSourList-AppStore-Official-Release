@@ -33,6 +33,9 @@ if [ -d "$cache" ]; then mv "$cache" "$proof/cache-before"; backup=true; fi
 label="net.brcm.dinosaurlist.update.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT"
 domain="gui/$(id -u)"
 cleanup() {
+  if [ -f "$HOME/Library/Logs/velopack_DinoSaurListNative.log" ]; then
+    tail -n 500 "$HOME/Library/Logs/velopack_DinoSaurListNative.log" > "$evidence/velopack.log"
+  fi
   launchctl bootout "$domain/$label" 2>/dev/null || true
   pids=$(pgrep -f "$proof/install/" || true)
   if [ -n "$pids" ]; then kill $pids 2>/dev/null || true; fi
@@ -62,6 +65,10 @@ start_app() {
     plutil -insert ProgramArguments.3 -string '--smoke-test-output' "$agent"
     plutil -insert ProgramArguments.4 -string "$evidence/updated-ui" "$agent"
   fi
+  plutil -insert EnvironmentVariables -dictionary "$agent"
+  plutil -insert EnvironmentVariables.DINOSAURLIST_DATA_DIR -string "$DINOSAURLIST_DATA_DIR" "$agent"
+  # launchd must not kill UpdateMac when the old application intentionally exits to apply.
+  plutil -insert AbandonProcessGroup -bool YES "$agent"
   plutil -insert RunAtLoad -bool YES "$agent"
   plutil -insert ProcessType -string Interactive "$agent"
   plutil -insert StandardOutPath -string "$evidence/$mode.stdout.log" "$agent"
@@ -73,6 +80,7 @@ stop_app() {
   pids=$(pgrep -f "$proof/install/" || true)
   if [ -n "$pids" ]; then kill $pids 2>/dev/null || true; fi
 }
+echo "Starting published $old; expecting automatic download of $version"
 start_app download
 for ((second=0;second<180;second++)); do
   [ ! -f "$cache/packages/$file" ] || break
@@ -84,6 +92,7 @@ actual=$(shasum -a 256 "$cache/packages/$file" | awk '{print toupper($1)}')
 # First start only downloads. It must not replace a running app.
 grep -F "$old" "$manifest" >/dev/null
 stop_app
+echo "Package checksum verified; testing next-start automatic apply"
 start_app apply
 for ((second=0;second<90;second++)); do
   if [ -f "$manifest" ] && grep -F "$version" "$manifest" >/dev/null; then break; fi
