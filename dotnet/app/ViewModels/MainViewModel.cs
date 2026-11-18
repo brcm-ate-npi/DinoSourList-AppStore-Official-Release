@@ -21,7 +21,7 @@ using DinoSaurList.Core.Updates;
 namespace DinoSaurList.ViewModels;
 
 public sealed record ToolSection(string Name, List<ToolCardViewModel> Tools) { public string Title => $"{Name} ({Tools.Count})"; }
-public sealed record ContributionCell(string Label, string Colour);
+public sealed record ContributionCell(string Label, string Colour, DateOnly? Date = null) { public bool HasDate => Date is not null; }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -76,6 +76,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public int ProfileUpdates { get; private set; }
     public int ProfileActiveDays { get; private set; }
     public int ProfileStreak { get; private set; }
+    [ObservableProperty] private ContributionCell? selectedContributionDay;
+    public string ProfileEventFilter => SelectedContributionDay?.Date?.ToString("yyyy-MM-dd") ?? "All days";
+    public IEnumerable<ToolCardViewModel> ProfileTools => Tools.Where(t => t.Author.Equals(ProfileName, StringComparison.OrdinalIgnoreCase));
+    public IEnumerable<ContributionEvent> ProfileEvents => ContributionService.Calendar(allTools, ProfileName, ContributionYear, manualContributions).SelectMany(d => d.Events).Where(e => SelectedContributionDay?.Date is not { } selected || e.Date == selected).OrderByDescending(e => e.Date).ThenBy(e => e.Tool).Take(100);
+    partial void OnSelectedContributionDayChanged(ContributionCell? value) { OnPropertyChanged(nameof(ProfileEvents)); OnPropertyChanged(nameof(ProfileEventFilter)); }
+    [RelayCommand] private void SelectContributionDay(ContributionCell? cell) => SelectedContributionDay = cell;
+    [RelayCommand] private void OpenProfileTool(ToolCardViewModel? tool) { if (tool is null) return; Navigate("Store"); SelectCard(tool, true); }
     public IEnumerable<ProfileLink> ProfileLinks => ProfileLinksText.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.Split('|', 3, StringSplitOptions.TrimEntries)).Where(p => p.Length > 1).Select(p => new ProfileLink(p[0], p[1], p.Length > 2 ? p[2] : ""));
     public void SelectCard(ToolCardViewModel card, bool details = false) { SelectedTool = card; DetailsVisible = details; }
     partial void OnListViewChanged(bool value) { foreach (var tool in Tools) tool.NotifyLayout(); }
@@ -342,14 +349,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void BuildContributions()
     {
         if (ContributionYear is < 1970 or > 9998) return;
-        ContributionDays.Clear();
+        ContributionDays.Clear(); SelectedContributionDay = null;
         var days = ContributionService.Calendar(allTools, ProfileName, ContributionYear, manualContributions);
+        for (var padding = 0; padding < (int)new DateOnly(ContributionYear, 1, 1).DayOfWeek; padding++) ContributionDays.Add(new("", "Transparent"));
         foreach (var day in days)
-            ContributionDays.Add(new($"{day.Date:yyyy-MM-dd}: {day.Count} events\n" + string.Join('\n', day.Events.Select(e => e.Kind + " " + e.Tool + "/" + e.File)), day.Count switch { 0 => "#E4EAF0", 1 => "#9ECEFF", < 4 => "#559BEE", < 8 => "#276CC1", _ => "#124580" }));
+            ContributionDays.Add(new($"{day.Date:yyyy-MM-dd}: {day.Count} events\n" + string.Join('\n', day.Events.Select(e => e.Kind + " " + e.Tool + "/" + e.File)), day.Count switch { 0 => "#E4EAF0", 1 => "#9ECEFF", < 4 => "#559BEE", < 8 => "#276CC1", _ => "#124580" }, day.Date));
         ProfileUpdates = days.Sum(d => d.Count); ProfileActiveDays = days.Count(d => d.Count > 0);
         var streak = 0; ProfileStreak = 0;
         foreach (var day in days) { streak = day.Count > 0 ? streak + 1 : 0; ProfileStreak = Math.Max(ProfileStreak, streak); }
-        foreach (var name in new[] { nameof(ProfileInitial), nameof(ProfileApplications), nameof(ProfileVersions), nameof(ProfileUpdates), nameof(ProfileActiveDays), nameof(ProfileStreak) }) OnPropertyChanged(name);
+        foreach (var name in new[] { nameof(ProfileInitial), nameof(ProfileApplications), nameof(ProfileVersions), nameof(ProfileUpdates), nameof(ProfileActiveDays), nameof(ProfileStreak), nameof(ProfileTools), nameof(ProfileEvents), nameof(ProfileEventFilter) }) OnPropertyChanged(name);
         ContributionSummary = $"{ProfileName}: {days.Sum(d => d.Count)} Box upload/edit and imported events in {ContributionYear}. These are catalogue dates, not local launch counts.";
     }
     public Func<Task<string?>>? PhotoPicker { get; set; }
