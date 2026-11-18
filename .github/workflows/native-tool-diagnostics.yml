@@ -15,8 +15,13 @@ jobs:
       - name: Diagnose real portable tool startup
         shell: pwsh
         run: ./scripts/diagnose-real-tool-windows.ps1
+      - name: Verify downloaded tool in the signed-in Windows desktop
+        shell: pwsh
+        run: ./scripts/verify-real-tool-windows.ps1
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: native-tool-diagnostics
-          path: ${{ runner.temp }}/native-tool-diagnostics
+          path: |
+            ${{ runner.temp }}/native-tool-diagnostics
+            ${{ runner.temp }}/native-installed-evidence
