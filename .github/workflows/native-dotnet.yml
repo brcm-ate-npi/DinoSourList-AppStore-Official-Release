@@ -301,9 +301,17 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/verify-real-tool-windows.ps1
-      - name: Stage verified packages and installed evidence in the draft release
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
-        shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
+      - name: Stage verified Windows packages and installed evidence in the draft release
+        if: runner.os == 'Windows' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish))
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RID: ${{ matrix.rid }}
+          NATIVE_RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
+        run: dotnet run --project scripts/ReleaseTransfer/ReleaseTransfer.csproj -c Release
+      - name: Stage verified macOS packages and installed evidence in the draft release
+        if: runner.os == 'macOS' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish))
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           NATIVE_RID: ${{ matrix.rid }}
