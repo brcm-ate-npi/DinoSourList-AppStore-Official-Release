@@ -24,7 +24,16 @@ public sealed class InstalledToolService(AppStorage storage, InstallationStore s
     public async Task LaunchAsync(InstalledTool tool, CancellationToken token = default)
     {
         if (!(await store.LoadAsync(token)).Any(t => InstallationStore.Same(t, tool))) throw new InvalidOperationException("Version is not installed.");
-        await launcher.RunAsync(tool.Directory, tool.ExecutionFile, false, token);
+        var configured = tool.Flow?.Get("execution", ToolLauncher.Platform == "macos" ? "mac" : "file", tool.Flow.Get("execution", "file")) ?? tool.ExecutionFile;
+        var directory = tool.Directory;
+        if (!File.Exists(SafePaths.Within(directory, string.IsNullOrWhiteSpace(configured) ? "run.cmd" : configured)))
+        {
+            // Older previews retained the ZIP wrapper. Repair resolution without moving user files.
+            var children = Directory.GetDirectories(directory).Where(d => !Path.GetFileName(d).StartsWith('.')).ToArray();
+            if (children.Length == 1 && (File.Exists(Path.Combine(children[0], configured)) || File.Exists(Path.Combine(children[0], "run.cmd")))) directory = children[0];
+        }
+        var execution = InstallService.ResolveExecution(directory, configured);
+        await launcher.RunAsync(directory, execution, false, token);
         await new ActivityStore(storage).RecordAsync(tool.ToolId, "launch", token);
     }
     public async Task ActivateAsync(InstalledTool tool, CancellationToken token = default)

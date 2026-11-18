@@ -43,6 +43,50 @@ public sealed class InstallTests
         using (var archive = ZipFile.Open(zip, ZipArchiveMode.Create)) { var entry = archive.CreateEntry("link"); entry.ExternalAttributes = unchecked((int)(0xa1ffu << 16)); }
         await Assert.ThrowsAsync<InvalidDataException>(() => InstallService.ExtractAsync(zip, Path.Combine(temp.Path, "stage"), TestContext.Current.CancellationToken));
     }
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task WrappedAndFlatPackagesProduceTheSameExecutableLayout(bool wrapped)
+    {
+        using var temp = new Temp(); var path = Path.Combine(temp.Path, "tool.zip");
+        using (var zip = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            if (wrapped) zip.CreateEntry("v1.0.0.0/");
+            foreach (var name in new[] { "run.cmd", "install.cmd", "src/main.py" })
+            { using var writer = new StreamWriter(zip.CreateEntry((wrapped ? "v1.0.0.0/" : "") + name).Open()); writer.Write("fixture"); }
+        }
+        var destination = Path.Combine(temp.Path, "installed");
+        await InstallService.ExtractAsync(path, destination, TestContext.Current.CancellationToken);
+        Assert.True(File.Exists(Path.Combine(destination, "src", "main.py")));
+        Assert.Equal("run.cmd", InstallService.ResolveExecution(destination, "run.cmd"));
+        Assert.False(Directory.Exists(Path.Combine(destination, "v1.0.0.0")));
+    }
+    [Fact]
+    public async Task SeveralTopLevelDirectoriesRemainIntact()
+    {
+        using var temp = new Temp(); var path = Path.Combine(temp.Path, "tool.zip");
+        using (var zip = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            foreach (var name in new[] { "app/run.sh", "assets/icon.txt" })
+            { using var writer = new StreamWriter(zip.CreateEntry(name).Open()); writer.Write("fixture"); }
+        }
+        var destination = Path.Combine(temp.Path, "installed");
+        await InstallService.ExtractAsync(path, destination, TestContext.Current.CancellationToken);
+        Assert.Equal("app/run.sh", InstallService.ResolveExecution(destination, "app/run.sh"));
+        Assert.True(File.Exists(Path.Combine(destination, "assets", "icon.txt")));
+    }
+    [Fact]
+    public async Task PreviouslyDownloadedWrapperCanLaunchWithoutReinstalling()
+    {
+        using var temp = new Temp(); var storage = new AppStorage(temp.Path); var store = new InstallationStore(storage);
+        var directory = Path.Combine(temp.Path, "old"); Directory.CreateDirectory(Path.Combine(directory, "v1.0.0.0"));
+        File.WriteAllText(Path.Combine(directory, "v1.0.0.0", "run.sh"), "fixture");
+        var record = new InstalledTool("1", "Tool-Author", "Tool", "Author", "1.0.0.0", directory, "", DateTimeOffset.UtcNow, Flow: FlowDocument.Parse("[Execution]\nfile=run.sh"));
+        await store.AddAsync(record, TestContext.Current.CancellationToken);
+        var launcher = new Launcher(); await new InstalledToolService(storage, store, launcher).LaunchAsync(record, TestContext.Current.CancellationToken);
+        Assert.Equal(Path.Combine(directory, "v1.0.0.0"), launcher.Root);
+        Assert.True(File.Exists(Path.Combine(directory, "v1.0.0.0", "run.sh")));
+    }
     private sealed class Box(string source) : IBoxClient
     {
         public Task<List<BoxItem>> ListAsync(string folderId, CancellationToken token = default) => throw new NotImplementedException();
@@ -54,6 +98,24 @@ public sealed class InstallTests
         public bool Fail { get; set; }
         public string? Root { get; private set; }
         public Task RunAsync(string root, string relative, bool wait, CancellationToken token) { Root = root; return Fail ? Task.FromException(new IOException("installer failed")) : Task.CompletedTask; }
+    }
+    private sealed class GeneratingLauncher : IToolLauncher
+    {
+        public Task RunAsync(string root, string relative, bool wait, CancellationToken token)
+        { File.WriteAllText(Path.Combine(root, "created.sh"), "created by installer"); return Task.CompletedTask; }
+    }
+    [Fact]
+    public async Task ExecutionTargetIsResolvedAfterAutomaticInstallerCreatesIt()
+    {
+        using var temp = new Temp(); var storage = new AppStorage(Path.Combine(temp.Path, "data")); var store = new InstallationStore(storage);
+        var zip = Zip(temp.Path, "v1.0.0.0/install.sh");
+        var flow = FlowDocument.Parse("[Platform]\nsupported=any\n[Execution]\nfile=created.sh\n[Installation]\nauto=true\nfile=install.sh");
+        var package = new ToolPackage("2", "v1.0.0.0-any.zip", "1.0.0.0", null, new string('a', 40), "any");
+        var tool = new ToolEntry("1", "Tool-Author", "Tool", "Author", "MISC", [package], flow, []);
+        var record = await new InstallService(new Box(zip), storage, store, new GeneratingLauncher()).InstallAsync(tool, package, null, TestContext.Current.CancellationToken);
+        Assert.Equal("created.sh", record.ExecutionFile);
+        Assert.True(File.Exists(Path.Combine(record.Directory, record.ExecutionFile)));
+        Assert.Equal(record.ExecutionFile, Assert.Single(await store.LoadAsync(TestContext.Current.CancellationToken)).ExecutionFile);
     }
     [Fact]
     public async Task FailedInstallerPreservesOldStateAndDoesNotStrandTheLock()

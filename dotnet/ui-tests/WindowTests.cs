@@ -25,18 +25,19 @@ public sealed class WindowTests
         var storage = new AppStorage(root);
         var tool = new ToolEntry("1", "BandMaster-Author", "BandMaster", "Author", "Foundation", [new("2", "v1.0.0.0.zip", "1.0.0.0", 123, new string('a', 40))], FlowDocument.Parse(""), []);
         await storage.WriteAsync("catalogue.json", new CatalogueSnapshot(DateTimeOffset.UtcNow, [tool], []), TestContext.Current.CancellationToken);
-        using var vm = new MainViewModel(root); var window = new MainWindow { DataContext = vm }; window.Show();
-        await vm.InitializeAsync();
+        using var vm = new MainViewModel(root, autoLoadProfiles: false); var window = new MainWindow { DataContext = vm }; window.Show();
+        await vm.InitializeAsync(); vm.NavigateCommand.Execute("Store"); vm.DetailsVisible = true;
         try
         {
             Dispatcher.UIThread.RunJobs(); Assert.Single(vm.VisibleTools);
             Assert.Equal("All categories", window.FindControl<ComboBox>("CategoryPicker")!.SelectedItem);
-            Assert.NotNull(window.FindControl<ListBox>("ToolList")); Assert.Equal("BandMaster", vm.SelectedTool?.Name);
+            Assert.NotNull(window.FindControl<ItemsControl>("ToolList")); Assert.Equal("BandMaster", vm.SelectedTool?.Name);
             Assert.Equal(OperatingSystem.IsWindows(), vm.CanInstall);
             vm.Search = "nonexistent"; Assert.Empty(vm.VisibleTools); vm.Search = "Author"; Assert.Single(vm.VisibleTools);
             await vm.FavouriteCommand.ExecuteAsync(null); Dispatcher.UIThread.RunJobs(); Assert.True(vm.SelectedTool!.IsFavourite);
             Assert.NotNull(vm.SelectedPackage);
             Assert.Equal(vm.SelectedPackage, window.FindControl<ComboBox>("PackagePicker")!.SelectedItem);
+            vm.DetailsVisible = false; vm.Search = ""; Dispatcher.UIThread.RunJobs();
             var output = Environment.GetEnvironmentVariable("DINOSAURLIST_SCREENSHOTS");
             if (output is not null) { Directory.CreateDirectory(output); window.CaptureRenderedFrame()?.Save(Path.Combine(output, "store.png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default); }
             foreach (var page in new[] { "Installed", "Assistant", "News", "Developers", "Settings", "Logs" })

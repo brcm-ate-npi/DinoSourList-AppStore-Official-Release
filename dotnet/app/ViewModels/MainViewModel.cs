@@ -20,6 +20,7 @@ using DinoSaurList.Core.Updates;
 
 namespace DinoSaurList.ViewModels;
 
+public sealed record ToolSection(string Name, List<ToolCardViewModel> Tools) { public string Title => $"{Name} ({Tools.Count})"; }
 public sealed record ContributionCell(string Label, string Colour);
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
@@ -54,7 +55,34 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public string AppVersion => AppUpdateService.Version;
     public string DataDirectory => Storage.Root;
     public string RuntimePlatform => ToolLauncher.Platform;
-    [ObservableProperty] private string page = "Store";
+    [ObservableProperty] private string page = "Installed";
+    [ObservableProperty] private bool listView;
+    [ObservableProperty] private double windowWidth = 1240;
+    public double StoreWidth => Math.Max(230, WindowWidth - 210 - 48 - (DetailsVisible ? 336 : 0));
+    partial void OnWindowWidthChanged(double value) { foreach (var tool in Tools) tool.NotifyLayout(); }
+    partial void OnDetailsVisibleChanged(bool value) { foreach (var tool in Tools) tool.NotifyLayout(); }
+    [ObservableProperty] private bool detailsVisible;
+    [ObservableProperty] private bool editingProfile;
+    public string PageTitle => FavouritesOnly ? "Favourites" : Page switch { "Store" => "Software Store", "Installed" => "Local Dashboard", "Developers" => "Dev Profile", "Assistant" => "AI Assistant", "News" => "News Updates", _ => Page };
+    public string UserName => Environment.UserName;
+    public string LocalCount => $"Local Downloads: {Tools.Count(t => t.HasInstalled)}";
+    public string StoreCount => $"Software Store: {Tools.Count}";
+    public string CategoryCount => $"Software Categories: {Math.Max(0, Categories.Count - 1)}";
+    public IEnumerable<ToolSection> ToolSections => VisibleTools.GroupBy(t => t.Category).OrderBy(g => g.Key == "Dev Tool" ? 0 : g.Key == "Foundation" ? 1 : g.Key == "MISC" ? 3 : 2).ThenBy(g => g.Key).Select(g => new ToolSection(g.Key, g.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList()));
+    public string ProfileInitial => ProfileName.Length > 0 ? ProfileName[..1].ToUpperInvariant() : "D";
+    public int ProfileApplications => allTools.Count(t => t.Author == ProfileName);
+    public int ProfileVersions => allTools.Where(t => t.Author == ProfileName).Sum(t => t.Packages.Count);
+    public int ProfileUpdates { get; private set; }
+    public int ProfileActiveDays { get; private set; }
+    public int ProfileStreak { get; private set; }
+    public IEnumerable<ProfileLink> ProfileLinks => ProfileLinksText.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.Split('|', 3, StringSplitOptions.TrimEntries)).Where(p => p.Length > 1).Select(p => new ProfileLink(p[0], p[1], p.Length > 2 ? p[2] : ""));
+    public void SelectCard(ToolCardViewModel card, bool details = false) { SelectedTool = card; DetailsVisible = details; }
+    partial void OnListViewChanged(bool value) { foreach (var tool in Tools) tool.NotifyLayout(); }
+    partial void OnProfileLinksTextChanged(string value) => OnPropertyChanged(nameof(ProfileLinks));
+    [RelayCommand] private void CloseDetails() => DetailsVisible = false;
+    [RelayCommand] private void EditProfile() => EditingProfile = !EditingProfile;
+    [RelayCommand] private void OpenProfileLink(ProfileLink? link) { if (link is not null && Uri.TryCreate(link.Url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https") OpenUri(uri.AbsoluteUri); }
+    [RelayCommand] private void Exit() => (Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
     [ObservableProperty] private string search = "";
     [ObservableProperty] private string category = "All categories";
     [ObservableProperty] private bool favouritesOnly;
@@ -97,14 +125,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public IEnumerable<InstalledTool> InstalledVersions => SelectedTool?.InstalledVersions ?? [];
     public bool HasSelection => SelectedTool is not null;
     public bool CanInstall => Idle && SelectedTool?.CanInstall == true && SelectedPackage is not null;
-    public bool CanLaunch => Idle && SelectedInstallation is not null && !string.IsNullOrWhiteSpace(SelectedInstallation.ExecutionFile);
+    public bool CanLaunch => Idle && SelectedInstallation is not null;
     public IEnumerable<ToolCardViewModel> VisibleTools => Tools.Where(t => (Page != "Installed" || t.HasInstalled)
         && (!FavouritesOnly || t.IsFavourite) && (Category == "All categories" || Category == t.Category)
         && (string.IsNullOrWhiteSpace(Search) || (t.Name + " " + t.Author + " " + t.Category).Contains(Search, StringComparison.OrdinalIgnoreCase)));
     public string VisibleCount => $"{VisibleTools.Count()} of {Tools.Count} tools";
-    public MainViewModel(string? dataRoot = null)
+    private readonly bool autoLoadProfiles;
+    public MainViewModel(string? dataRoot = null, bool autoLoadProfiles = true)
     {
-        chat = new(assistant); Storage = new(dataRoot); installations = new(Storage); state = new(Storage); installedTools = new(Storage, installations, launcher); activity = new(Storage); ConfigureClient();
+        this.autoLoadProfiles = autoLoadProfiles; chat = new(assistant); Storage = new(dataRoot); installations = new(Storage); state = new(Storage); installedTools = new(Storage, installations, launcher); activity = new(Storage); ConfigureClient();
     }
     private void ConfigureClient()
     {
@@ -131,8 +160,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         activeVersions = await state.ActiveVersionsAsync(token);
         var previousCategory = Category;
         var current = SelectedTool?.Id; var local = await installations.LoadAsync(token);
+        foreach (var old in Tools) old.Icon?.Dispose();
         Tools.Clear(); Categories.Clear(); Categories.Add("All categories"); Authors.Clear();
-        foreach (var tool in allTools) Tools.Add(new(tool, local, favourites.Contains(tool.FolderName), activeVersions.GetValueOrDefault(tool.Id)));
+        foreach (var tool in allTools)
+        {
+            var card = new ToolCardViewModel(tool, local, favourites.Contains(tool.FolderName), activeVersions.GetValueOrDefault(tool.Id), this);
+            try { var icon = await documents.IconAsync(tool, token); if (icon is not null) card.Icon = new Bitmap(icon); }
+            catch (Exception error) when (error is IOException or HttpRequestException or ArgumentException) { Log($"Icon unavailable: {tool.Name}"); }
+            card.SelectedCardInstallation = card.Installed; Tools.Add(card);
+        }
         foreach (var value in allTools.Select(t => t.Category).Distinct().Order()) Categories.Add(value);
         foreach (var value in allTools.Select(t => t.Author).Distinct().OrderBy(a => a.Equals("NPI DEV", StringComparison.OrdinalIgnoreCase) ? 0 : 1).ThenBy(a => a, StringComparer.OrdinalIgnoreCase)) Authors.Add(value);
         Category = Categories.Contains(previousCategory) ? previousCategory : "All categories";
@@ -144,7 +180,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void NotifyTools()
     {
         var current = SelectedTool;
-        OnPropertyChanged(nameof(VisibleTools)); OnPropertyChanged(nameof(VisibleCount));
+        OnPropertyChanged(nameof(VisibleTools)); OnPropertyChanged(nameof(VisibleCount)); OnPropertyChanged(nameof(ToolSections));
+        foreach (var tool in Tools) tool.NotifyLayout();
+        foreach (var name in new[] { nameof(LocalCount), nameof(StoreCount), nameof(CategoryCount), nameof(PageTitle) }) OnPropertyChanged(name);
         SelectedTool = VisibleTools.FirstOrDefault(t => t == current) ?? VisibleTools.FirstOrDefault();
     }
     partial void OnSearchChanged(string value) => NotifyTools();
@@ -155,7 +193,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         foreach (var name in new[] { nameof(IsStore), nameof(IsAssistant), nameof(IsNews), nameof(IsProfile), nameof(IsSettings), nameof(IsLogs) }) OnPropertyChanged(name);
         NotifyTools();
     }
-    partial void OnBusyChanged(bool value) { OnPropertyChanged(nameof(Idle)); OnPropertyChanged(nameof(CanInstall)); OnPropertyChanged(nameof(CanLaunch)); }
+    partial void OnBusyChanged(bool value) { foreach (var tool in Tools) tool.NotifyLayout(); OnPropertyChanged(nameof(Idle)); OnPropertyChanged(nameof(CanInstall)); OnPropertyChanged(nameof(CanLaunch)); }
     partial void OnSelectedToolChanged(ToolCardViewModel? value)
     {
         OnPropertyChanged(nameof(AvailablePackages)); OnPropertyChanged(nameof(InstalledVersions));
@@ -179,7 +217,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (SelectedInstallation is null) SelectedInstallation = SelectedTool?.Installed;
         });
     }
-    [RelayCommand] private void Navigate(string value) => Page = value;
+    [RelayCommand] private void Navigate(string value) { FavouritesOnly = false; Page = value; DetailsVisible = false; if (autoLoadProfiles && value == "Developers" && Idle) _ = LoadSharedProfileAsync(); }
     [RelayCommand] private void ShowFavourites() { FavouritesOnly = true; Page = "Store"; }
     [RelayCommand] private void UsefulLinks() => DocumentRequested?.Invoke("Useful links", UserStateService.UsefulLinks);
     [RelayCommand] private void PreviewNews() => DocumentRequested?.Invoke("News & updates", News);
@@ -278,6 +316,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         DeveloperProfile? profile;
         try { profile = await profiles.LoadAsync(ProfileName, token); Status = "Shared Box profile loaded."; }
         catch (HttpRequestException) { profile = await profiles.LoadCacheAsync(ProfileName, token); Status = "Box unavailable; showing the last saved profile."; }
+        if (profile is null) { ProfileMessage = ""; ProfileLinksText = ""; }
         if (profile is not null) { ProfileMessage = profile.Tweet; ProfileLinksText = string.Join('\n', profile.Links.Select(l => l.Title + " | " + l.Url + (string.IsNullOrEmpty(l.Key) ? "" : " | " + l.Key))); }
         var photo = await profiles.LoadPhotoAsync(ProfileName, token);
         ProfilePhoto?.Dispose(); ProfilePhoto = photo is null ? null : new Bitmap(photo);
@@ -293,7 +332,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         await profiles.SaveAsync(new(ProfileName, ProfileMessage, DateTimeOffset.UtcNow.ToString("O"), links), token);
         Status = "Profile and links saved to Box.";
     });
-    partial void OnProfileNameChanged(string value) => BuildContributions();
+    partial void OnProfileNameChanged(string value) { BuildContributions(); if (autoLoadProfiles && IsProfile && Idle) _ = LoadSharedProfileAsync(); }
     partial void OnContributionYearChanged(int value) => BuildContributions();
     private void BuildContributions()
     {
@@ -302,6 +341,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var days = ContributionService.Calendar(allTools, ProfileName, ContributionYear, manualContributions);
         foreach (var day in days)
             ContributionDays.Add(new($"{day.Date:yyyy-MM-dd}: {day.Count} events\n" + string.Join('\n', day.Events.Select(e => e.Kind + " " + e.Tool + "/" + e.File)), day.Count switch { 0 => "#E4EAF0", 1 => "#9ECEFF", < 4 => "#559BEE", < 8 => "#276CC1", _ => "#124580" }));
+        ProfileUpdates = days.Sum(d => d.Count); ProfileActiveDays = days.Count(d => d.Count > 0);
+        var streak = 0; ProfileStreak = 0;
+        foreach (var day in days) { streak = day.Count > 0 ? streak + 1 : 0; ProfileStreak = Math.Max(ProfileStreak, streak); }
+        foreach (var name in new[] { nameof(ProfileInitial), nameof(ProfileApplications), nameof(ProfileVersions), nameof(ProfileUpdates), nameof(ProfileActiveDays), nameof(ProfileStreak) }) OnPropertyChanged(name);
         ContributionSummary = $"{ProfileName}: {days.Sum(d => d.Count)} Box upload/edit and imported events in {ContributionYear}. These are catalogue dates, not local launch counts.";
     }
     public Func<Task<string?>>? PhotoPicker { get; set; }
@@ -383,5 +426,5 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         catch (Exception e) when (e is not OutOfMemoryException) { Status = e.Message; Log(e.GetType().Name + ": " + e.Message); }
         finally { Busy = false; }
     }
-    public void Dispose() { updateCancellation.Cancel(); ProfilePhoto?.Dispose(); operation.Cancel(); operation.Dispose(); http.Dispose(); }
+    public void Dispose() { foreach (var tool in Tools) tool.Icon?.Dispose(); updateCancellation.Cancel(); ProfilePhoto?.Dispose(); operation.Cancel(); operation.Dispose(); http.Dispose(); }
 }

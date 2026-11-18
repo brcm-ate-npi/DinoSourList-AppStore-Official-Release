@@ -13,9 +13,11 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        SizeChanged += (_, _) => { if (DataContext is MainViewModel model) model.WindowWidth = ClientSize.Width; };
         DataContextChanged += (_, _) =>
         {
             if (DataContext is not MainViewModel vm) return;
+            vm.WindowWidth = ClientSize.Width > 0 ? ClientSize.Width : Width;
             vm.PhotoPicker = async () =>
             {
                 var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions

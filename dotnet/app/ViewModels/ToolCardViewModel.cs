@@ -1,12 +1,34 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Avalonia.Media.Imaging;
 using DinoSaurList.Core.Registry;
 using DinoSaurList.Core.Install;
 using DinoSaurList.Core.Launch;
 
 namespace DinoSaurList.ViewModels;
 
-public sealed partial class ToolCardViewModel(ToolEntry tool, List<InstalledTool> installed, bool favourite, string? activeVersion = null) : ObservableObject
+public sealed partial class ToolCardViewModel(ToolEntry tool, List<InstalledTool> installed, bool favourite, string? activeVersion = null, MainViewModel? owner = null) : ObservableObject
 {
+    public MainViewModel? Owner { get; } = owner;
+    public Bitmap? Icon { get; set; }
+    public bool HasIcon => Icon is not null;
+    public double CardWidth => Owner?.ListView == true ? (Owner.StoreWidth - 24) : Math.Min(250, (Owner?.StoreWidth ?? 274) - 24);
+    public bool IsDashboard => Owner?.Page == "Installed";
+    [ObservableProperty] private InstalledTool? selectedCardInstallation;
+    public string PrimaryAction => Owner?.Page == "Installed" ? "Open" : "Download";
+    public bool CanUse => Owner?.Idle == true && (Owner.Page == "Installed" ? HasInstalled : CanInstall);
+    [ObservableProperty] private ToolPackage? selectedCardPackage = tool.Packages.FirstOrDefault();
+    public void NotifyLayout() { OnPropertyChanged(nameof(CardWidth)); OnPropertyChanged(nameof(PrimaryAction)); OnPropertyChanged(nameof(IsDashboard)); OnPropertyChanged(nameof(CanUse)); }
+    [RelayCommand] private void Details() => Owner?.SelectCard(this, true);
+    [RelayCommand] private async Task ReadmeAsync() { if (Owner is null) return; Owner.SelectCard(this); await Owner.ReadmeCommand.ExecuteAsync(null); }
+    [RelayCommand] private async Task FavouriteAsync() { if (Owner is null) return; Owner.SelectCard(this); await Owner.FavouriteCommand.ExecuteAsync(null); }
+    [RelayCommand] private async Task PrimaryAsync()
+    {
+        if (Owner is null) return;
+        Owner.SelectCard(this); Owner.SelectedPackage = SelectedCardPackage;
+        if (Owner.Page == "Installed") { Owner.SelectedInstallation = SelectedCardInstallation ?? Installed; await Owner.LaunchCommand.ExecuteAsync(null); }
+        else await Owner.InstallCommand.ExecuteAsync(null);
+    }
     public ToolEntry Tool { get; } = tool;
     public string Id => Tool.Id;
     public string Name => Tool.Name;

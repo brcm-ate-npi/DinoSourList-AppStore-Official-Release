@@ -15,6 +15,8 @@ internal static class NativeSmoke
     {
         var prefix = Path.GetFullPath(OutputPrefix!);
         Directory.CreateDirectory(Path.GetDirectoryName(prefix)!);
+        vm.NavigateCommand.Execute("Store");
+        vm.DetailsVisible = true;
         await Task.Delay(1000);
         if (!window.IsVisible || window.ClientSize.Width < 1 || vm.Tools.Count == 0 || !vm.VisibleTools.Any() || vm.SelectedTool is null || window.FindControl<ComboBox>("PackagePicker")?.SelectedItem is null)
             throw new InvalidOperationException("Native window or cached catalogue failed to initialize: " + vm.Status);

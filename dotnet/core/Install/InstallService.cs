@@ -26,9 +26,8 @@ public sealed class InstallService(IBoxClient box, AppStorage storage, Installat
             if (Directory.Exists(target)) throw new IOException("This version is already installed; choose Open or another version.");
             await box.DownloadAsync(new(package.FileId, package.FileName, "file", package.Size, package.Sha1), zip, progress, token);
             await ExtractAsync(zip, stage, token);
+            // Keep the configured target: an installer may create it only after extraction.
             var execution = tool.Flow.Get("execution", ToolLauncher.Platform == "macos" ? "mac" : "file", tool.Flow.Get("execution", "file"));
-            if (string.IsNullOrEmpty(execution) || !File.Exists(SafePaths.Within(stage, execution)))
-                execution = new[] { "run.cmd", "setup.cmd", "run.sh" }.FirstOrDefault(f => File.Exists(Path.Combine(stage, f))) ?? "";
             var installer = tool.Flow.Get("installation", "file");
             if (tool.Flow.Flag("installation", "auto") && (string.IsNullOrEmpty(installer) || !File.Exists(SafePaths.Within(stage, installer))))
                 throw new InvalidDataException("Automatic installation is configured but its installer is missing.");
@@ -46,6 +45,8 @@ public sealed class InstallService(IBoxClient box, AppStorage storage, Installat
                 await hooks.BeforeInstallAsync(tool, previous, token);
                 // Run from the final directory: installers may persist their working directory.
                 if (tool.Flow.Flag("installation", "auto")) await launcher.RunAsync(target, installer, true, token);
+                execution = ResolveExecution(target, execution);
+                record = record with { ExecutionFile = execution };
                 await hooks.AfterInstallAsync(tool, target, execution, token);
                 await installed.AddAsync(record, token); registered = true;
                 await new UserStateService(storage).PinAsync(record, token);
@@ -67,11 +68,23 @@ public sealed class InstallService(IBoxClient box, AppStorage storage, Installat
             finally { gate.Release(); }
         }
     }
+    public static string ResolveExecution(string directory, string configured)
+    {
+        if (!string.IsNullOrWhiteSpace(configured) && File.Exists(SafePaths.Within(directory, configured))) return configured;
+        return new[] { "run.cmd", "setup.cmd", "run.sh" }.FirstOrDefault(f => File.Exists(Path.Combine(directory, f)))
+            ?? throw new FileNotFoundException($"No execution target was found after installation (Flow.txt: {configured}).", directory);
+    }
     public static async Task ExtractAsync(string zip, string destination, CancellationToken token = default)
     {
         Directory.CreateDirectory(destination);
         using var archive = ZipFile.OpenRead(zip);
         if (archive.Entries.Count > 100000) throw new InvalidDataException("Package contains too many entries.");
+        // Match the Python distribution contract: remove a single enclosing ZIP folder.
+        // Validate original paths too, before removing any prefix.
+        foreach (var item in archive.Entries) SafePaths.Within(destination, item.FullName);
+        var names = archive.Entries.Select(e => e.FullName.Replace('\\', '/')).Where(n => n.Length > 0).ToArray();
+        var first = names.FirstOrDefault()?.Split('/')[0];
+        var prefix = first is not null && names.All(n => n == first + "/" || n.StartsWith(first + "/", StringComparison.Ordinal)) ? first + "/" : "";
         long total = 0;
         foreach (var entry in archive.Entries)
         {
@@ -79,7 +92,10 @@ public sealed class InstallService(IBoxClient box, AppStorage storage, Installat
             total = checked(total + entry.Length);
             if (total > 20L * 1024 * 1024 * 1024 || ((entry.ExternalAttributes >> 16) & 0xf000) == 0xa000)
                 throw new InvalidDataException("Package exceeds limits or contains symbolic links.");
-            var path = SafePaths.Within(destination, entry.FullName);
+            var name = entry.FullName.Replace('\\', '/');
+            var relative = prefix.Length > 0 ? name[prefix.Length..] : name;
+            if (relative.Length == 0) continue;
+            var path = SafePaths.Within(destination, relative);
             if (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\')) { Directory.CreateDirectory(path); continue; }
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             await using var input = entry.Open();
