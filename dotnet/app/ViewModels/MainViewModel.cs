@@ -52,6 +52,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<string> Logs { get; } = [];
     public ObservableCollection<ContributionCell> ContributionDays { get; } = [];
     public ObservableCollection<Recommendation> Recommendations { get; } = [];
+    public string WindowTitle => "DinoSaurList — " + AppVersion;
     public string AppVersion => AppUpdateService.Version;
     public string DataDirectory => Storage.Root;
     public string RuntimePlatform => ToolLauncher.Platform;

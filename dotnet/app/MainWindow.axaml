@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:vm="using:DinoSaurList.ViewModels" xmlns:model="using:DinoSaurList.Core.Registry"
  xmlns:profile="using:DinoSaurList.Core.Profile" xmlns:assistant="using:DinoSaurList.Core.Assistant" x:Class="DinoSaurList.MainWindow" x:DataType="vm:MainViewModel"
- Title="DinoSaurList" Width="1240" Height="820" MinWidth="900" MinHeight="600" Icon="avares://DinoSaurList/Assets/dinosaur.ico">
+ Title="{Binding WindowTitle}" Width="1240" Height="820" MinWidth="900" MinHeight="600" Icon="avares://DinoSaurList/Assets/dinosaur.ico">
  <Window.Styles>
   <Style Selector="Button.nav"><Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="Foreground" Value="#57527D"/><Setter Property="Background" Value="Transparent"/><Setter Property="Margin" Value="0,5"/><Setter Property="Padding" Value="12,13"/></Style>
   <Style Selector="Button.nav:pointerover /template/ ContentPresenter"><Setter Property="Background" Value="#EFEDFF"/></Style>

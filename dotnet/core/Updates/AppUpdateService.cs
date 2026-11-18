@@ -1,3 +1,4 @@
+using System.Reflection;
 using Velopack;
 using Velopack.Sources;
 
@@ -11,7 +12,7 @@ public sealed class AppUpdateService
     private readonly SemaphoreSlim gate = new(1, 1);
     private UpdateManager? manager;
     private UpdateInfo? available;
-    public static string Version => typeof(AppUpdateService).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
+    public static string Version => typeof(AppUpdateService).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.1.0";
     public static IUpdateSource Source(string feed)
     {
         if (!Uri.TryCreate(feed, UriKind.Absolute, out var uri) || uri.Scheme != "https" || !string.IsNullOrEmpty(uri.UserInfo)) throw new ArgumentException("Update feed must use HTTPS without credentials.");

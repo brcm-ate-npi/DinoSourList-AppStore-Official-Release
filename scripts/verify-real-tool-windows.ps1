@@ -7,15 +7,16 @@ if (-not $Interactive -and -not [Environment]::UserInteractive) {
   # Service runners use Session 0; run only this proof in the existing signed-in user's desktop.
   $user=(Get-CimInstance Win32_ComputerSystem).UserName
   if (-not $user) { throw 'No signed-in Windows user: a real GUI tool check requires an interactive desktop.' }
-  $taskName="DinoSaurList-ToolProof-$RunId"
-  $result=Join-Path $WorkRoot "dinosaurlist-interactive-$RunId.json"
-  $failure=Join-Path $WorkRoot "dinosaurlist-interactive-$RunId.error.txt"
-  $wrapper=Join-Path $WorkRoot "dinosaurlist-interactive-$RunId.ps1"
+  $proofId=$RunId+"-"+[guid]::NewGuid().ToString("N")
+  $taskName="DinoSaurList-ToolProof-$proofId"
+  $result=Join-Path $WorkRoot "dinosaurlist-interactive-$proofId.json"
+  $failure=Join-Path $WorkRoot "dinosaurlist-interactive-$proofId.error.txt"
+  $wrapper=Join-Path $WorkRoot "dinosaurlist-interactive-$proofId.ps1"
   function Literal([string]$value) { return "'" + $value.Replace("'","''") + "'" }
-  $invoke='& '+(Literal $PSCommandPath)+' -Interactive -WorkRoot '+(Literal $WorkRoot)+' -RunId '+(Literal $RunId)+' -CliPath '+(Literal $CliPath)
+  $invoke='& '+(Literal $PSCommandPath)+' -Interactive -WorkRoot '+(Literal $WorkRoot)+' -RunId '+(Literal $proofId)+' -CliPath '+(Literal $CliPath)
   $body="`$ErrorActionPreference='Stop'`ntry { $invoke; @{success=`$true} | ConvertTo-Json | Set-Content -Encoding utf8 "+(Literal $result)+" } catch { `$_ | Out-String | Set-Content -Encoding utf8 "+(Literal $failure)+"; @{success=`$false} | ConvertTo-Json | Set-Content -Encoding utf8 "+(Literal $result)+"; exit 1 }"
   Set-Content -Path $wrapper -Value $body -Encoding utf8
-  $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$wrapper+'"')
+  $action=New-ScheduledTaskAction -Execute (Get-Command pwsh.exe -ErrorAction Stop).Source -Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$wrapper+'"')
   $principal=New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
   $options=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 3)
   $registered=$false
