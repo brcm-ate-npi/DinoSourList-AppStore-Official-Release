@@ -378,11 +378,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
         run: |
-          mkdir -p native-release-assets
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir native-release-assets --clobber \
+          asset_dir="$RUNNER_TEMP/dinosaurlist-release-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p "$asset_dir"
+          echo "NATIVE_RELEASE_ASSETS=$asset_dir" >> "$GITHUB_ENV"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir "$asset_dir" --clobber \
             --pattern 'DinoSaurListNative-*' --pattern 'releases.*' --pattern 'assets.*' --pattern 'RELEASES*'
       - name: Deploy NPI release feed
         shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
         run: |
-          ./scripts/deploy-native-feed.sh native-release-assets /var/www/dinosaurlist
+          ./scripts/deploy-native-feed.sh "${NATIVE_RELEASE_ASSETS:?}" /var/www/dinosaurlist "${RELEASE_TAG#v}"
           curl --fail --silent --show-error https://npi-service.kor.broadcom.net/dinosaurlist/list.json >/dev/null

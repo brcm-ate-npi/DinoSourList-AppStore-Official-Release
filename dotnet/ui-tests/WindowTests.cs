@@ -37,6 +37,11 @@ public sealed class WindowTests
             vm.NavigateCommand.Execute("Installed"); Dispatcher.UIThread.RunJobs();
             Assert.True(window.FindControl<Button>("DashboardUpdateButton")!.IsEffectivelyVisible);
             Assert.NotNull(window.FindControl<TextBlock>("LocalIpLabel"));
+            window.Height = 600; Dispatcher.UIThread.RunJobs();
+            var navigation = window.FindControl<ScrollViewer>("SidebarNavigation")!;
+            var footer = window.FindControl<StackPanel>("SidebarFooter")!;
+            Assert.True(navigation.Bounds.Bottom <= footer.Bounds.Y + 1, "Navigation must scroll above the profile footer on small screens.");
+            window.Height = 820; Dispatcher.UIThread.RunJobs();
             vm.NavigateCommand.Execute("Store");
             vm.Search = "nonexistent"; Assert.Empty(vm.VisibleTools); vm.Search = "Author"; Assert.Single(vm.VisibleTools);
             await vm.FavouriteCommand.ExecuteAsync(null); Dispatcher.UIThread.RunJobs(); Assert.True(vm.SelectedTool!.IsFavourite);
