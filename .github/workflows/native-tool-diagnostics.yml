@@ -1,5 +1,7 @@
 name: Native Windows tool diagnostics
 on:
+  push:
+    branches: [diagnostics/dinosaurlist-windows]
   workflow_dispatch:
 permissions:
   contents: read
