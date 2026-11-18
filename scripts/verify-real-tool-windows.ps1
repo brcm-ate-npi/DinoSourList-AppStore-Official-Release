@@ -5,8 +5,33 @@ if (-not $CliPath) { $CliPath=Join-Path $env:LOCALAPPDATA 'DinoSaurListNative/cu
 $cli=$CliPath
 if (-not $Interactive -and -not [Environment]::UserInteractive) {
   # Service runners use Session 0; run only this proof in the existing signed-in user's desktop.
-  $user=(Get-CimInstance Win32_ComputerSystem).UserName
-  if (-not $user) { throw 'No signed-in Windows user: a real GUI tool check requires an interactive desktop.' }
+  Add-Type @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+public static class DinoSignedInSessions {
+ [StructLayout(LayoutKind.Sequential)] struct Session { public int Id; public IntPtr Name; public int State; }
+ [DllImport("wtsapi32.dll", CharSet=CharSet.Unicode)] static extern bool WTSEnumerateSessionsW(IntPtr server,int reserved,int version,out IntPtr sessions,out int count);
+ [DllImport("wtsapi32.dll", CharSet=CharSet.Unicode)] static extern bool WTSQuerySessionInformationW(IntPtr server,int id,int info,out IntPtr value,out int bytes);
+ [DllImport("wtsapi32.dll")] static extern void WTSFreeMemory(IntPtr value);
+ static string Value(int id,int info) { IntPtr p; int n; if(!WTSQuerySessionInformationW(IntPtr.Zero,id,info,out p,out n)) return ""; try { return Marshal.PtrToStringUni(p) ?? ""; } finally { WTSFreeMemory(p); } }
+ public static string FindRunnerDesktop() {
+  IntPtr sessions; int count; if(!WTSEnumerateSessionsW(IntPtr.Zero,0,1,out sessions,out count)) return "";
+  try {
+   int size=Marshal.SizeOf<Session>();
+   for(int i=0;i<count;i++) { var s=Marshal.PtrToStructure<Session>(IntPtr.Add(sessions,i*size));
+    if(s.State!=0 && s.State!=4) continue;
+    var user=Value(s.Id,5); var domain=Value(s.Id,7);
+    if(user.Equals(Environment.UserName,StringComparison.OrdinalIgnoreCase)) return string.IsNullOrEmpty(domain) ? user : domain+"\\"+user;
+   }
+   return "";
+  } finally { WTSFreeMemory(sessions); }
+ }
+}
+'@
+  # Win32_ComputerSystem.UserName misses RDP-only logins; inspect both console and RDP sessions.
+  $user=[DinoSignedInSessions]::FindRunnerDesktop()
+  if (-not $user) { throw 'No signed-in runner-account desktop (console or RDP): a real GUI tool check requires one.' }
   $proofId=$RunId+"-"+[guid]::NewGuid().ToString("N")
   $taskName="DinoSaurList-ToolProof-$proofId"
   $result=Join-Path $WorkRoot "dinosaurlist-interactive-$proofId.json"

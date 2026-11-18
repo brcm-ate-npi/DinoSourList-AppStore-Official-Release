@@ -245,20 +245,6 @@ jobs:
           REQUESTED_VERSION: ${{ inputs.version }}
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: ./scripts/build-native-macos.sh
-      - name: Install preview and exercise native UI and CLI
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/native-install-smoke.ps1 -OperatingSystem '${{ runner.os }}'
-      - name: Download and launch a real portable Box tool
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/verify-real-tool-windows.ps1
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: installed-ui-${{ matrix.rid }}
-          path: ${{ runner.temp }}/native-installed-evidence
-          if-no-files-found: ignore
       - name: Verify generated native package contents
         if: runner.os == 'Windows'
         shell: pwsh
@@ -279,6 +265,21 @@ jobs:
           name: DinoSaurList-${{ matrix.rid }}-preview
           path: Releases/*
           if-no-files-found: error
+
+      - name: Install preview and exercise native UI and CLI
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/native-install-smoke.ps1 -OperatingSystem '${{ runner.os }}'
+      - name: Download and launch a real portable Box tool
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/verify-real-tool-windows.ps1
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: installed-ui-${{ matrix.rid }}
+          path: ${{ runner.temp }}/native-installed-evidence
+          if-no-files-found: ignore
 
   release:
     needs: package
