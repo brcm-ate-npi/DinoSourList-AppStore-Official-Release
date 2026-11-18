@@ -14,8 +14,6 @@ on:
         description: 'Publish this version to GitHub Releases and the NPI feed'
         type: boolean
         default: false
-env:
-  DOTNET_INSTALL_DIR: ${{ runner.temp }}/dinosaurlist-dotnet-sdk
 permissions:
   contents: read
 concurrency:
@@ -28,6 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dinosaurlist-dotnet-sdk
         with:
           dotnet-version: '10.0.x'
       - run: python3 scripts/check-native-secrets.py
@@ -61,6 +61,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dinosaurlist-dotnet-sdk
         with:
           dotnet-version: '10.0.x'
       - name: Determine package version
