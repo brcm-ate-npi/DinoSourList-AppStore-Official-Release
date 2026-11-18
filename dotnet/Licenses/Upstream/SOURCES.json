@@ -1,0 +1,75 @@
+[
+  {
+    "repository": "AvaloniaUI/angle",
+    "commit": "1c89805903c1482166356d3b950d474973180e61",
+    "url": "https://raw.githubusercontent.com/AvaloniaUI/angle/1c89805903c1482166356d3b950d474973180e61/LICENSE",
+    "file": "AvaloniaUI-angle.txt",
+    "sha256": "bf4da21bd20bcfb5b60b7ecc67fa864a79be049e21d6178076887f178dd6c71a"
+  },
+  {
+    "repository": "AvaloniaUI/AvaloniaEdit",
+    "commit": "86fdebec4cff7affb0e14c7885df71d28edce777",
+    "url": "https://raw.githubusercontent.com/AvaloniaUI/AvaloniaEdit/86fdebec4cff7affb0e14c7885df71d28edce777/LICENSE",
+    "file": "AvaloniaUI-AvaloniaEdit.txt",
+    "sha256": "8a13531b616df7e9cd5d58bd8588da2288e14fab9e6785d1aead5c87e0a507d0"
+  },
+  {
+    "repository": "AvaloniaUI/Avalonia.BuildServices",
+    "commit": "777f975b0a0cecf0311273711d56697212c558c0",
+    "url": "https://raw.githubusercontent.com/AvaloniaUI/Avalonia.BuildServices/777f975b0a0cecf0311273711d56697212c558c0/LICENSE",
+    "file": "AvaloniaUI-Avalonia.BuildServices.txt",
+    "sha256": "94162c40c663bd96ec1b870e6aba6ef0a43f44c9eb500807e7965e7078f6dc47"
+  },
+  {
+    "repository": "AvaloniaUI/Avalonia",
+    "commit": "d3c867a9e2de379249b03dbeb3495bd7f076a81a",
+    "url": "https://raw.githubusercontent.com/AvaloniaUI/Avalonia/d3c867a9e2de379249b03dbeb3495bd7f076a81a/licence.md",
+    "file": "AvaloniaUI-Avalonia.txt",
+    "sha256": "213814d306090074d234d760239ff0f67eb9b8d20eefb4d5631bb39dbe0b769b"
+  },
+  {
+    "repository": "whistyun/Markdown.Avalonia",
+    "commit": "f3f65f3f82b44f569958f0116c188e7a8e60686f",
+    "url": "https://raw.githubusercontent.com/whistyun/Markdown.Avalonia/f3f65f3f82b44f569958f0116c188e7a8e60686f/LICENSE.txt",
+    "file": "whistyun-Markdown.Avalonia.txt",
+    "sha256": "5fcb954fa1cc1e90ecbaf67c5d90d115a4e36aa96715ef493c82a26f48f27e89"
+  },
+  {
+    "repository": "CommunityToolkit/dotnet",
+    "commit": "35dfe7b12da0e64384bfaec7ebc0883196a89f9f",
+    "status": "No root license file; package notices and license terms retained."
+  },
+  {
+    "repository": "TylerBrinks/ExCSS",
+    "commit": "c97e84d6126bb2e42658cf5af627d52e697c8779",
+    "url": "https://raw.githubusercontent.com/TylerBrinks/ExCSS/c97e84d6126bb2e42658cf5af627d52e697c8779/license.txt",
+    "file": "TylerBrinks-ExCSS.txt",
+    "sha256": "fe201d8ad7c9f2122b4813fe0811075b63fbac9f4fb0c9075f49f38718a728ad"
+  },
+  {
+    "repository": "kekekeks/MicroCom",
+    "commit": "76785efcafd91b5902fd19dd11145f6dd655b7b4",
+    "url": "https://raw.githubusercontent.com/kekekeks/MicroCom/76785efcafd91b5902fd19dd11145f6dd655b7b4/LICENSE",
+    "file": "kekekeks-MicroCom.txt",
+    "sha256": "6ee769c9ac4dac9abb16b98b1341e9528ff9f4ab685481410d3376d14148f3a9"
+  },
+  {
+    "repository": "wieslawsoltes/Svg.Skia",
+    "commit": "816d4b49724aa50540c15fb60fbb72b67ac1caf9",
+    "url": "https://raw.githubusercontent.com/wieslawsoltes/Svg.Skia/816d4b49724aa50540c15fb60fbb72b67ac1caf9/LICENSE.TXT",
+    "file": "wieslawsoltes-Svg.Skia.txt",
+    "sha256": "31fdac60ff94d9cab3afef9794905df38c47e82b6879819c025d703d3aebd953"
+  },
+  {
+    "repository": "tmds/Tmds.DBus",
+    "commit": "b4a7fed0b878f74cb54f7cca84d2889af4e596ba",
+    "status": "No root license file; package notices and license terms retained."
+  },
+  {
+    "repository": "velopack/velopack",
+    "commit": "92d6a1c91716729d449034df5c50307dcce39493",
+    "url": "https://raw.githubusercontent.com/velopack/velopack/92d6a1c91716729d449034df5c50307dcce39493/LICENSE",
+    "file": "velopack-velopack.txt",
+    "sha256": "91845db83551c877ebbb1118e0fb92e4e527290d23b995c55dcd438b3293943f"
+  }
+]
