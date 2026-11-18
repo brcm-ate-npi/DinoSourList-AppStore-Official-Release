@@ -12,6 +12,7 @@ public sealed class InstallationStore(AppStorage storage)
         await gate.WaitAsync(token);
         try
         {
+            using var lease = await StateLease.AcquireAsync(storage, "state", token);
             var tools = await LoadAsync(token);
             tools.RemoveAll(t => t.ToolId == tool.ToolId && t.Version == tool.Version);
             tools.Add(tool); await storage.WriteAsync("installed.json", tools, token);
@@ -21,7 +22,7 @@ public sealed class InstallationStore(AppStorage storage)
     public async Task RemoveAsync(InstalledTool tool, CancellationToken token = default)
     {
         await gate.WaitAsync(token);
-        try { var tools = await LoadAsync(token); tools.RemoveAll(t => Same(t, tool)); await storage.WriteAsync("installed.json", tools, token); }
+        try { using var lease = await StateLease.AcquireAsync(storage, "state", token); var tools = await LoadAsync(token); tools.RemoveAll(t => Same(t, tool)); await storage.WriteAsync("installed.json", tools, token); }
         finally { gate.Release(); }
     }
     public static bool Same(InstalledTool left, InstalledTool right) => left.ToolId == right.ToolId && left.Version == right.Version

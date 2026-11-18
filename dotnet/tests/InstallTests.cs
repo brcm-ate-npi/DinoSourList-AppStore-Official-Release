@@ -94,4 +94,25 @@ public sealed class InstallTests
         Assert.Equal("old application", File.ReadAllText(Path.Combine(folder, "run.cmd")));
         Assert.Contains("Tool-Author", (await storage.ReadAsync<HashSet<string>>("favourites.json", TestContext.Current.CancellationToken))!);
     }
+    [Fact]
+    public async Task LegacyUserDataImportPreservesOriginalsAndExcludesCredentials()
+    {
+        using var temp = new Temp(); var root = Path.Combine(temp.Path, "legacy"); var config = Path.Combine(root, "config-record"); Directory.CreateDirectory(config);
+        File.WriteAllText(Path.Combine(config, "news-edited.html"), "<h1>News</h1><script>bad()</script><p>Hello &amp; team</p>");
+        File.WriteAllText(Path.Combine(config, "dev_profile.json"), "{\"Author\":{\"tweet\":\"Draft\",\"updated\":\"today\",\"pending\":true}}");
+        File.WriteAllText(Path.Combine(config, "refresh_setting.json"), "{\"mode\":4,\"selected_apps\":[]}");
+        File.WriteAllText(Path.Combine(config, "update.json"), "do not import authentication data");
+        var storage = new AppStorage(Path.Combine(temp.Path, "native")); var store = new InstallationStore(storage);
+        await new LegacyImporter(storage, store).ImportAsync(new([], [], 0, root), TestContext.Current.CancellationToken);
+        var news = await new UserStateService(storage).NewsAsync("bundled", TestContext.Current.CancellationToken);
+        Assert.Contains("Hello & team", news); Assert.DoesNotContain("bad()", news);
+        Assert.True(File.Exists(Path.Combine(storage.Root, "LegacyData", "news-edited.html")));
+        Assert.False(File.Exists(Path.Combine(storage.Root, "LegacyData", "update.json")));
+        Assert.True((await storage.ReadAsync<DinoSaurList.Core.Profile.DeveloperProfile>("profile-Author.json", TestContext.Current.CancellationToken))!.Pending);
+        Assert.Equal(4, (await new UserStateService(storage).SettingsAsync(TestContext.Current.CancellationToken)).RefreshMode);
+        Assert.Contains("<script>", File.ReadAllText(Path.Combine(config, "news-edited.html")));
+        await new UserStateService(storage).SaveNewsAsync("New native notes", TestContext.Current.CancellationToken);
+        await new LegacyImporter(storage, store).ImportAsync(new([], [], 0, root), TestContext.Current.CancellationToken);
+        Assert.Equal("New native notes", await new UserStateService(storage).NewsAsync("", TestContext.Current.CancellationToken));
+    }
 }

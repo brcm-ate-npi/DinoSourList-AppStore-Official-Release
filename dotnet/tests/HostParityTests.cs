@@ -82,4 +82,11 @@ public sealed class HostParityTests
         launcher.Fail = false; await service.ActivateAsync(old, Token);
         Assert.Equal(oldDirectory, launcher.VersionPath); Assert.Equal("1.0", (await service.FindAsync("1", token: Token)).Version);
     }
+    [Fact]
+    public async Task IndependentHostsCannotLoseConcurrentFavouriteChanges()
+    {
+        using var temp = new Temp(); var storage = new AppStorage(temp.Path);
+        await Task.WhenAll(Enumerable.Range(0, 20).Select(i => new UserStateService(storage).SetFavouriteAsync("Tool-" + i, true, Token)));
+        Assert.Equal(20, (await new UserStateService(storage).FavouritesAsync(Token)).Count);
+    }
 }

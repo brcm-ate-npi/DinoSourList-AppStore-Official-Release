@@ -75,7 +75,7 @@ jobs:
         run: |
           dotnet publish app/DinoSaurList.App.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:Version=$env:NATIVE_VERSION -o ../publish
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet publish cli/DinoSaurList.Cli.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:Version=$env:NATIVE_VERSION -o ../publish/cli
+          dotnet publish cli/DinoSaurList.Cli.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:Version=$env:NATIVE_VERSION -o ../publish
           exit $LASTEXITCODE
       - name: Restore pinned Velopack packaging tool
         run: dotnet tool restore
@@ -94,11 +94,11 @@ jobs:
       - name: Package Windows preview
         if: runner.os == 'Windows'
         shell: pwsh
-        run: dotnet vpk pack --packId DinoSaurList --packTitle DinoSaurList --packVersion $env:NATIVE_VERSION --packDir publish --mainExe DinoSaurList.exe --icon IcoFolder/main.ico --channel win-preview
+        run: dotnet vpk pack --packId DinoSaurListNative --packTitle DinoSaurList --packVersion $env:NATIVE_VERSION --packDir publish --mainExe DinoSaurList.exe --icon IcoFolder/main.ico --channel win-preview
       - name: Package macOS preview
         if: runner.os == 'macOS'
         shell: bash
-        run: dotnet vpk pack --packId DinoSaurList --packTitle DinoSaurList --packVersion "$NATIVE_VERSION" --packDir publish --mainExe DinoSaurList --icon DinoSaurList.icns --channel osx-preview
+        run: dotnet vpk pack --packId DinoSaurListNative --packTitle DinoSaurList --packVersion "$NATIVE_VERSION" --packDir publish --mainExe DinoSaurList --icon DinoSaurList.icns --channel osx-preview
       - name: Install preview and exercise native UI and CLI
         shell: pwsh
         run: ./scripts/native-install-smoke.ps1 -OperatingSystem '${{ runner.os }}'

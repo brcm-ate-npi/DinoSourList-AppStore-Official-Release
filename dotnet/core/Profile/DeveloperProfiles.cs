@@ -2,12 +2,13 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DinoSaurList.Core.Box;
+using DinoSaurList.Core.Install;
 using DinoSaurList.Core.Registry;
 
 namespace DinoSaurList.Core.Profile;
 
 public sealed record ProfileLink(string Title, string Url, string Key = "");
-public sealed record DeveloperProfile(string Author, string Tweet, string Updated, List<ProfileLink> Links);
+public sealed record DeveloperProfile(string Author, string Tweet, string Updated, List<ProfileLink> Links, bool Pending = false);
 public sealed class DeveloperProfiles(IBoxClient box, AppStorage storage)
 {
     private string? folderId;
@@ -22,7 +23,10 @@ public sealed class DeveloperProfiles(IBoxClient box, AppStorage storage)
     }
     public async Task<DeveloperProfile> LoadAsync(string author, CancellationToken token)
     {
-        var name = SafeName(author); var cached = await storage.ReadAsync<DeveloperProfile>("profile-" + name + ".json", token);
+        var name = SafeName(author);
+        using var lease = await StateLease.AcquireAsync(storage, "profile-" + name, token);
+        var cached = await storage.ReadAsync<DeveloperProfile>("profile-" + name + ".json", token);
+        if (cached?.Pending == true) return cached;
         var files = await box.ListAsync(await FolderAsync(token), token);
         var profile = files.FirstOrDefault(f => f.Name.Equals(name + ".json", StringComparison.OrdinalIgnoreCase));
         var linksFile = files.FirstOrDefault(f => f.Name.Equals(name + ".links.json", StringComparison.OrdinalIgnoreCase));
@@ -41,7 +45,7 @@ public sealed class DeveloperProfiles(IBoxClient box, AppStorage storage)
                 {
                     var url = link.TryGetProperty("url", out var address) ? address.GetString() : null;
                     if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")) continue;
-                    links.Add(new(link.TryGetProperty("title", out var title) ? title.GetString() ?? "" : "", uri.AbsoluteUri));
+                    links.Add(new(link.TryGetProperty("title", out var title) ? title.GetString() ?? "" : "", uri.AbsoluteUri, link.TryGetProperty("key", out var key) ? key.GetString() ?? "" : ""));
                 }
         }
         var result = new DeveloperProfile(author, tweet, updated, links);
@@ -51,23 +55,30 @@ public sealed class DeveloperProfiles(IBoxClient box, AppStorage storage)
     public async Task<DeveloperProfile?> LoadCacheAsync(string author, CancellationToken token) => await storage.ReadAsync<DeveloperProfile>("profile-" + SafeName(author) + ".json", token);
     public async Task SaveAsync(DeveloperProfile profile, CancellationToken token)
     {
-        if (profile.Tweet.Length > 1000 || profile.Links.Count > 30) throw new ArgumentException("Profile message or links exceed limits.");
+        if (profile.Tweet.Length > 280 || profile.Links.Count > 20) throw new ArgumentException("Profile message is limited to 280 characters and 20 links.");
         foreach (var link in profile.Links)
             if (!Uri.TryCreate(link.Url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")) throw new ArgumentException("Profile links must use HTTP or HTTPS.");
-        var name = SafeName(profile.Author); await storage.WriteAsync("profile-" + name + ".json", profile, token);
+        var name = SafeName(profile.Author);
+        using var lease = await StateLease.AcquireAsync(storage, "profile-" + name, token);
+        await storage.WriteAsync("profile-" + name + ".json", profile with { Pending = true }, token);
         var folder = await FolderAsync(token);
         var json = JsonSerializer.Serialize(new { author = profile.Author, tweet = profile.Tweet, updated = profile.Updated }, AppStorage.Json);
         await box.UploadAsync(folder, name + ".json", Encoding.UTF8.GetBytes(json), token);
         json = JsonSerializer.Serialize(new { author = profile.Author, links = profile.Links, updated = profile.Updated }, AppStorage.Json);
         await box.UploadAsync(folder, name + ".links.json", Encoding.UTF8.GetBytes(json), token);
+        await storage.WriteAsync("profile-" + name + ".json", profile with { Pending = false }, token);
     }
     public async Task<string?> LoadPhotoAsync(string author, CancellationToken token)
     {
         var name = SafeName(author); var folder = Path.Combine(storage.Root, "Photos"); Directory.CreateDirectory(folder);
+        var pending = Path.Combine(folder, name + ".pending.png");
+        if (File.Exists(pending)) return pending;
+        var local = Path.Combine(folder, name + ".local.png");
         var file = (await box.ListAsync(await FolderAsync(token), token)).FirstOrDefault(f => f.Name == name + ".png");
-        if (file is null) return null;
+        if (file is null) return File.Exists(local) ? local : null;
         if (file.Size is > 8 * 1024 * 1024) throw new InvalidDataException("Profile photo exceeds 8 MiB.");
-        var path = Path.Combine(folder, file.Id + "-" + file.Sha1 + ".png");
+        if (file.Sha1 is not { Length: 40 } hash || !hash.All(char.IsAsciiHexDigit)) throw new InvalidDataException("Profile photo has no valid checksum.");
+        var path = SafePaths.Within(folder, name + "-" + SafePaths.ToolId(file.Id) + "-" + hash + ".png");
         if (!File.Exists(path)) await box.DownloadAsync(file, path, null, token);
         return path;
     }
@@ -75,6 +86,12 @@ public sealed class DeveloperProfiles(IBoxClient box, AppStorage storage)
     private async Task SavePhotoInternalAsync(string author, byte[] png, CancellationToken token)
     {
         if (png.Length > 8 * 1024 * 1024 || png.Length < 8 || !png.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })) throw new ArgumentException("Profile photo must be PNG, at most 8 MiB.");
-        await box.UploadAsync(await FolderAsync(token), SafeName(author) + ".png", png, token);
+        var name = SafeName(author); var folder = Path.Combine(storage.Root, "Photos"); Directory.CreateDirectory(folder);
+        using var lease = await StateLease.AcquireAsync(storage, "photo-" + name, token);
+        var pending = Path.Combine(folder, name + ".pending.png"); var temp = pending + "." + Guid.NewGuid().ToString("N");
+        try { await File.WriteAllBytesAsync(temp, png, token); File.Move(temp, pending, true); }
+        finally { if (File.Exists(temp)) File.Delete(temp); }
+        await box.UploadAsync(await FolderAsync(token), name + ".png", png, token);
+        File.Move(pending, Path.Combine(folder, name + ".local.png"), true);
     }
 }

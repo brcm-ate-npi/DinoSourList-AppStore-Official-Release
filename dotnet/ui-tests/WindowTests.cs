@@ -25,10 +25,12 @@ public sealed class WindowTests
         var storage = new AppStorage(root);
         var tool = new ToolEntry("1", "BandMaster-Author", "BandMaster", "Author", "Foundation", [new("2", "v1.0.0.0.zip", "1.0.0.0", 123, new string('a', 40))], FlowDocument.Parse(""), []);
         await storage.WriteAsync("catalogue.json", new CatalogueSnapshot(DateTimeOffset.UtcNow, [tool], []), TestContext.Current.CancellationToken);
-        using var vm = new MainViewModel(root); await vm.InitializeAsync(); var window = new MainWindow { DataContext = vm }; window.Show();
+        using var vm = new MainViewModel(root); var window = new MainWindow { DataContext = vm }; window.Show();
+        await vm.InitializeAsync();
         try
         {
             Dispatcher.UIThread.RunJobs(); Assert.Single(vm.VisibleTools);
+            Assert.Equal("All categories", window.FindControl<ComboBox>("CategoryPicker")!.SelectedItem);
             Assert.NotNull(window.FindControl<ListBox>("ToolList")); Assert.Equal("BandMaster", vm.SelectedTool?.Name);
             Assert.Equal(OperatingSystem.IsWindows(), vm.CanInstall);
             vm.Search = "nonexistent"; Assert.Empty(vm.VisibleTools); vm.Search = "Author"; Assert.Single(vm.VisibleTools);

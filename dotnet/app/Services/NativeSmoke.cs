@@ -16,11 +16,11 @@ internal static class NativeSmoke
         var prefix = Path.GetFullPath(OutputPrefix!);
         Directory.CreateDirectory(Path.GetDirectoryName(prefix)!);
         await Task.Delay(1000);
-        if (!window.IsVisible || window.ClientSize.Width < 1 || vm.Tools.Count == 0)
+        if (!window.IsVisible || window.ClientSize.Width < 1 || vm.Tools.Count == 0 || !vm.VisibleTools.Any() || vm.SelectedTool is null || window.FindControl<ComboBox>("PackagePicker")?.SelectedItem is null)
             throw new InvalidOperationException("Native window or cached catalogue failed to initialize: " + vm.Status);
         var scaling = window.RenderScaling;
         using var bitmap = new RenderTargetBitmap(new PixelSize((int)(window.ClientSize.Width * scaling), (int)(window.ClientSize.Height * scaling)), new Vector(96 * scaling, 96 * scaling));
         bitmap.Render(window); bitmap.Save(prefix + ".png", PngBitmapEncoderOptions.Default);
-        await File.WriteAllTextAsync(prefix + ".json", JsonSerializer.Serialize(new { platform = Environment.OSVersion.ToString(), visible = window.IsVisible, tools = vm.Tools.Count, status = vm.Status }, AppStorage.Json));
+        await File.WriteAllTextAsync(prefix + ".json", JsonSerializer.Serialize(new { platform = Environment.OSVersion.ToString(), visible = window.IsVisible, tools = vm.Tools.Count, visibleTools = vm.VisibleTools.Count(), selectedPackage = vm.SelectedPackage?.FileName, status = vm.Status }, AppStorage.Json));
     }
 }

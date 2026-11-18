@@ -110,7 +110,7 @@ public static class CliApplication
                     if (Option("--file") is { } photoFile) await photos.SavePhotoAsync(photoAuthor, await File.ReadAllBytesAsync(photoFile, token), token);
                     Json(new { path = await photos.LoadPhotoAsync(photoAuthor, token) }); break;
                 case "links": await output.WriteLineAsync(UserStateService.UsefulLinks); break;
-                case "contributions": Json(ContributionService.Calendar((await Catalogue()).Tools, Required("--author"), int.Parse(Option("--year") ?? DateTime.Today.Year.ToString()))); break;
+                case "contributions": Json(ContributionService.Calendar((await Catalogue()).Tools, Required("--author"), int.Parse(Option("--year") ?? DateTime.Today.Year.ToString()), await ContributionService.LoadManualAsync(storage, token))); break;
                 case "activity": Json(await new ActivityStore(storage).LoadAsync(token)); break;
                 case "update":
                     var updater = new AppUpdateService(); var status = await updater.CheckAsync(settings.UpdateFeedUrl);

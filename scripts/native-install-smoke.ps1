@@ -14,13 +14,13 @@ if ($OperatingSystem -eq 'Windows') {
   if (-not $setup) { throw 'Setup.exe missing' }
   $install = Start-Process $setup.FullName -ArgumentList '--silent' -PassThru -Wait
   if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
-  $app = Join-Path $env:LOCALAPPDATA 'DinoSaurList/current/DinoSaurList.exe'
+  $app = Join-Path $env:LOCALAPPDATA 'DinoSaurListNative/current/DinoSaurList.exe'
 } elseif ($OperatingSystem -eq 'macOS') {
   $setup = Get-ChildItem Releases -Filter '*-Setup.pkg' | Select-Object -First 1
   if (-not $setup) { throw 'Setup.pkg missing' }
   & sudo installer -pkg $setup.FullName -target /
   if ($LASTEXITCODE -ne 0) { throw 'macOS installer failed' }
-  $app = '/Applications/DinoSaurList.app/Contents/MacOS/DinoSaurList'
+  $app = @('/Applications/DinoSaurList.app/Contents/MacOS/DinoSaurList', '/Applications/DinoSaurListNative.app/Contents/MacOS/DinoSaurList') | Where-Object { Test-Path $_ } | Select-Object -First 1
 } else { throw 'Unsupported smoke-test OS' }
 if (-not (Test-Path $app)) { throw "Installed application missing: $app" }
 $evidence = Join-Path $env:RUNNER_TEMP 'native-installed-evidence'
@@ -33,8 +33,8 @@ if (-not (Test-Path "$prefix.json") -or -not (Test-Path "$prefix.png")) { throw 
 $result = Get-Content "$prefix.json" -Raw | ConvertFrom-Json
 if (-not $result.visible -or $result.tools -ne 1) { throw 'Installed native UI failed validation' }
 $cliName = if ($OperatingSystem -eq 'Windows') { 'DinoSaurList.Cli.exe' } else { 'DinoSaurList.Cli' }
-# Velopack includes all self-contained CLI files in a subdirectory of the installed app.
-$cli = Join-Path (Split-Path $app) "cli/$cliName"
+# Both hosts sit at the installed application root so they share the same Velopack locator.
+$cli = Join-Path (Split-Path $app) $cliName
 if (-not (Test-Path $cli)) { throw "Installed CLI missing: $cli" }
 & $cli catalogue --data-dir $data | Set-Content (Join-Path $evidence 'installed-cli.json') -Encoding utf8
 if ($LASTEXITCODE -ne 0) { throw 'Installed self-contained CLI failed' }

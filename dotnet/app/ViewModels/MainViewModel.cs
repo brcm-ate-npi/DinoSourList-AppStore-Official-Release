@@ -40,6 +40,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly Dictionary<string, string> readmes = [];
     private Dictionary<string, string> activeVersions = [];
     private List<ToolEntry> allTools = [];
+    private List<ContributionEvent> manualContributions = [];
     private HashSet<string> favourites = new(StringComparer.OrdinalIgnoreCase);
     private UserSettings settings = new();
     private CancellationTokenSource operation = new();
@@ -120,16 +121,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var saved = await catalogue.LoadCacheAsync(token);
         if (saved is not null) { allTools = saved.Tools; await RebuildAsync(token); Status = $"Saved catalogue from {saved.FetchedAt.LocalDateTime:g}. Refresh to check Box."; }
         else { var live = await catalogue.RefreshAsync(new Progress<string>(s => Status = s), token); allTools = live.Tools; await RebuildAsync(token); Status = $"Loaded {allTools.Count} tools."; }
+        manualContributions = await ContributionService.LoadManualAsync(Storage, token); BuildContributions();
         await LoadActivityAsync(token);
     });
     private async Task RebuildAsync(CancellationToken token)
     {
         activeVersions = await state.ActiveVersionsAsync(token);
+        var previousCategory = Category;
         var current = SelectedTool?.Id; var local = await installations.LoadAsync(token);
         Tools.Clear(); Categories.Clear(); Categories.Add("All categories"); Authors.Clear();
         foreach (var tool in allTools) Tools.Add(new(tool, local, favourites.Contains(tool.FolderName), activeVersions.GetValueOrDefault(tool.Id)));
         foreach (var value in allTools.Select(t => t.Category).Distinct().Order()) Categories.Add(value);
-        foreach (var value in allTools.Select(t => t.Author).Distinct().Order()) Authors.Add(value);
+        foreach (var value in allTools.Select(t => t.Author).Distinct().OrderBy(a => a.Equals("NPI DEV", StringComparison.OrdinalIgnoreCase) ? 0 : 1).ThenBy(a => a, StringComparer.OrdinalIgnoreCase)) Authors.Add(value);
+        Category = Categories.Contains(previousCategory) ? previousCategory : "All categories";
+        if (string.IsNullOrWhiteSpace(ProfileName)) ProfileName = Authors.FirstOrDefault() ?? "";
         SelectedTool = Tools.FirstOrDefault(t => t.Id == current) ?? Tools.FirstOrDefault();
         assistant.Index(allTools.Select(t => (t, readmes.GetValueOrDefault(t.Id, ""))));
         NotifyTools(); BuildContributions();
@@ -268,7 +273,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         DeveloperProfile? profile;
         try { profile = await profiles.LoadAsync(ProfileName, token); Status = "Shared Box profile loaded."; }
         catch (HttpRequestException) { profile = await profiles.LoadCacheAsync(ProfileName, token); Status = "Box unavailable; showing the last saved profile."; }
-        if (profile is not null) { ProfileMessage = profile.Tweet; ProfileLinksText = string.Join('\n', profile.Links.Select(l => l.Title + " | " + l.Url)); }
+        if (profile is not null) { ProfileMessage = profile.Tweet; ProfileLinksText = string.Join('\n', profile.Links.Select(l => l.Title + " | " + l.Url + (string.IsNullOrEmpty(l.Key) ? "" : " | " + l.Key))); }
         var photo = await profiles.LoadPhotoAsync(ProfileName, token);
         ProfilePhoto?.Dispose(); ProfilePhoto = photo is null ? null : new Bitmap(photo);
     });
@@ -277,8 +282,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var links = ProfileLinksText.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line =>
         {
-            var pair = line.Split('|', 2, StringSplitOptions.TrimEntries);
-            return new ProfileLink(pair.Length > 1 ? pair[0] : "Link", pair[^1]);
+            var pair = line.Split('|', 3, StringSplitOptions.TrimEntries);
+            return new ProfileLink(pair.Length > 1 ? pair[0] : "Link", pair.Length > 1 ? pair[1] : pair[0], pair.Length > 2 ? pair[2] : "");
         }).ToList();
         await profiles.SaveAsync(new(ProfileName, ProfileMessage, DateTimeOffset.UtcNow.ToString("O"), links), token);
         Status = "Profile and links saved to Box.";
@@ -289,10 +294,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (ContributionYear is < 1970 or > 9998) return;
         ContributionDays.Clear();
-        var days = ContributionService.Calendar(allTools, ProfileName, ContributionYear);
+        var days = ContributionService.Calendar(allTools, ProfileName, ContributionYear, manualContributions);
         foreach (var day in days)
             ContributionDays.Add(new($"{day.Date:yyyy-MM-dd}: {day.Count} events\n" + string.Join('\n', day.Events.Select(e => e.Kind + " " + e.Tool + "/" + e.File)), day.Count switch { 0 => "#E4EAF0", 1 => "#9ECEFF", < 4 => "#559BEE", < 8 => "#276CC1", _ => "#124580" }));
-        ContributionSummary = $"{ProfileName}: {days.Sum(d => d.Count)} Box upload/edit events in {ContributionYear}. These are catalogue dates, not local launch counts.";
+        ContributionSummary = $"{ProfileName}: {days.Sum(d => d.Count)} Box upload/edit and imported events in {ContributionYear}. These are catalogue dates, not local launch counts.";
     }
     public Func<Task<string?>>? PhotoPicker { get; set; }
     [RelayCommand]
@@ -337,7 +342,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (legacyPreview is null) throw new InvalidOperationException("Preview the old folder first.");
         await new LegacyImporter(Storage, installations).ImportAsync(legacyPreview, token);
-        favourites = await state.FavouritesAsync(token); await RebuildAsync(token); Status = "Legacy installations and favourites imported.";
+        favourites = await state.FavouritesAsync(token); manualContributions = await ContributionService.LoadManualAsync(Storage, token);
+        settings = await state.SettingsAsync(token); RefreshMode = settings.RefreshMode; RefreshSelectedFolders = string.Join(", ", settings.RefreshSelectedFolders ?? []);
+        News = await state.NewsAsync(UserStateService.BundledNews, token);
+        await RebuildAsync(token); Status = "Legacy installations and user data imported; original files preserved.";
     });
     [RelayCommand] private async Task CheckUpdatesAsync() => await GuardAsync(async _ => UpdateStatus = await updater.CheckAsync(UpdateFeedUrl));
     [RelayCommand] private async Task DownloadUpdateAsync() => await GuardAsync(async _ => UpdateStatus = await updater.DownloadAsync(p => Progress = p));

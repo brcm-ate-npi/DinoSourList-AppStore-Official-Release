@@ -35,6 +35,7 @@ public sealed class UserStateService(AppStorage storage)
         await gate.WaitAsync(token);
         try
         {
+            using var lease = await StateLease.AcquireAsync(storage, "state", token);
             var values = await FavouritesAsync(token);
             if (enabled) values.Add(folderName); else values.Remove(folderName);
             await storage.WriteAsync("favourites.json", values, token); return enabled;
@@ -47,6 +48,7 @@ public sealed class UserStateService(AppStorage storage)
         await gate.WaitAsync(token);
         try
         {
+            using var lease = await StateLease.AcquireAsync(storage, "state", token);
             if (!(await new InstallationStore(storage).LoadAsync(token)).Any(t => InstallationStore.Same(t, tool))) throw new InvalidOperationException("Version is not installed.");
             var active = await ActiveVersionsAsync(token); active[tool.ToolId] = tool.Version;
             await storage.WriteAsync("active-versions.json", active, token);
