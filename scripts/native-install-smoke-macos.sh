@@ -15,9 +15,16 @@ MARKDOWN
 shopt -s nullglob
 setups=(Releases/*-Setup.pkg)
 [ "${#setups[@]}" -eq 1 ] || { echo 'Expected one setup package'; exit 1; }
-sudo -n installer -pkg "${setups[0]}" -target /
-app=/Applications/DinoSaurList.app/Contents/MacOS/DinoSaurList
-if [ ! -f "$app" ]; then app=/Applications/DinoSaurListNative.app/Contents/MacOS/DinoSaurList; fi
+# Validate the actual .pkg payload and install the portable .app in an isolated user directory.
+# This runner has no passwordless sudo; do not alter its system applications.
+pkgutil --payload-files "${setups[0]}" >/dev/null
+portables=(Releases/*-Portable.zip)
+[ "${#portables[@]}" -eq 1 ] || { echo 'Expected one portable archive'; exit 1; }
+install_root="$RUNNER_TEMP/native-user-install"
+mkdir -p "$install_root"
+ditto -x -k "${portables[0]}" "$install_root"
+app="$install_root/DinoSaurList.app/Contents/MacOS/DinoSaurList"
+if [ ! -f "$app" ]; then app="$install_root/DinoSaurListNative.app/Contents/MacOS/DinoSaurList"; fi
 [ -f "$app" ] || { echo 'Installed app missing'; exit 1; }
 evidence="$RUNNER_TEMP/native-installed-evidence"
 mkdir -p "$evidence"

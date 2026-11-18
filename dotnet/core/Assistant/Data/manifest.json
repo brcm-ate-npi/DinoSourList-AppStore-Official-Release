@@ -1,9 +1,12 @@
 {
   "nltk": "3.10.4",
-  "sha256": "39da10c16665487ca3edaa105611301fbc06e57ef9b674e13941e174dbe62368",
-  "uncompressedBytes": 7431655,
+  "sha256": "23f00f0e2c1e1bbe864cdc1903046f5b390ea6f134585488c935c1f5deb75860",
+  "uncompressedBytes": 7431669,
   "sources": [
     "https://github.com/nltk/nltk_data/tree/gh-pages/packages/taggers",
-    "https://wordnet.princeton.edu/license-and-commercial-use"
-  ]
+    "https://wordnet.princeton.edu/license-and-commercial-use",
+    "https://snowballstem.org/algorithms/english/stop.txt",
+    "https://snowballstem.org/license.html"
+  ],
+  "stopwords": "BSD-3-Clause Snowball + application compatibility rules; NLTK stopwords corpus removed"
 }

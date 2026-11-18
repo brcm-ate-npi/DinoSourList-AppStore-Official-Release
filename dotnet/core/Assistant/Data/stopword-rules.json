@@ -1,0 +1,37 @@
+{
+  "retain": [
+    "cannot",
+    "could",
+    "ought",
+    "would"
+  ],
+  "suppress": [
+    "ain",
+    "aren",
+    "can",
+    "couldn",
+    "didn",
+    "doesn",
+    "don",
+    "hadn",
+    "hasn",
+    "haven",
+    "isn",
+    "just",
+    "ll",
+    "ma",
+    "mightn",
+    "mustn",
+    "needn",
+    "now",
+    "re",
+    "shan",
+    "shouldn",
+    "ve",
+    "wasn",
+    "weren",
+    "will",
+    "won",
+    "wouldn"
+  ]
+}
