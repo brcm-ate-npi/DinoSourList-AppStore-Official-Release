@@ -303,7 +303,7 @@ jobs:
         run: ./scripts/verify-real-tool-windows.ps1
       - name: Stage verified packages and installed evidence in the draft release
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
-        shell: bash
+        shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
         env:
           GH_TOKEN: ${{ github.token }}
           NATIVE_RID: ${{ matrix.rid }}
