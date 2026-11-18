@@ -29,7 +29,11 @@ if [ ! -f "$app" ]; then app="$install_root/DinoSaurListNative.app/Contents/MacO
 evidence="$RUNNER_TEMP/native-installed-evidence"
 mkdir -p "$evidence"
 prefix="$evidence/installed-ui"
-"$app" --smoke-test-output "$prefix" &
+# LaunchServices puts the Cocoa app in the logged-in GUI session; direct Mach-O execution
+# from a background runner can fail to obtain the native display-link render timer.
+system_profiler SPDisplaysDataType | grep -E 'Displays:|Display Type:|Online:|Resolution:' || true
+bundle="${app%/Contents/MacOS/DinoSaurList}"
+open -W -n "$bundle" --args --data-dir "$DINOSAURLIST_DATA_DIR" --smoke-test-output "$prefix" &
 app_pid=$!
 trap 'kill "$app_pid" 2>/dev/null || true' EXIT
 finished=false

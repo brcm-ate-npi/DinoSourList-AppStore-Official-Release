@@ -9,6 +9,12 @@ internal static class Program
     public static void Main(string[] args)
     {
         VelopackApp.Build().Run();
+        var dataIndex = Array.IndexOf(args, "--data-dir");
+        if (dataIndex >= 0)
+        {
+            if (dataIndex + 1 >= args.Length) throw new ArgumentException("--data-dir requires a directory.");
+            Environment.SetEnvironmentVariable("DINOSAURLIST_DATA_DIR", Path.GetFullPath(args[dataIndex + 1]));
+        }
         var smokeIndex = Array.IndexOf(args, "--smoke-test-output");
         if (smokeIndex >= 0)
         {
