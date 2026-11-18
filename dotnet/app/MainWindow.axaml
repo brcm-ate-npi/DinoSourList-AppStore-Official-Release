@@ -1,0 +1,73 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:vm="using:DinoSaurList.ViewModels" xmlns:model="using:DinoSaurList.Core.Registry"
+ xmlns:assistant="using:DinoSaurList.Core.Assistant" x:Class="DinoSaurList.MainWindow" x:DataType="vm:MainViewModel"
+ Title="DinoSaurList" Width="1240" Height="820" MinWidth="900" MinHeight="600" Icon="avares://DinoSaurList/Assets/dinosaur.ico">
+ <Window.Styles><Style Selector="Button.nav"><Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="Transparent"/><Setter Property="Margin" Value="0,3"/></Style></Window.Styles>
+ <Grid ColumnDefinitions="210,*" RowDefinitions="*,Auto">
+  <Border Background="#15263B" Padding="18,26" Grid.RowSpan="2">
+   <DockPanel LastChildFill="True">
+    <StackPanel DockPanel.Dock="Top" Spacing="5" Margin="0,0,0,28"><StackPanel Orientation="Horizontal" Spacing="8"><Image Source="avares://DinoSaurList/Assets/dinosaur.ico" Width="24" Height="24"/><TextBlock Text="DinoSaurList" Foreground="White" FontSize="20" FontWeight="SemiBold"/></StackPanel><TextBlock Text="Your engineering toolbox" Foreground="#ABBACB" FontSize="12"/></StackPanel>
+    <StackPanel DockPanel.Dock="Bottom" Spacing="5"><TextBlock Text="{Binding AppVersion}" Foreground="#ABBACB"/><TextBlock Text="{Binding RuntimePlatform}" Foreground="#ABBACB" FontSize="12"/></StackPanel>
+    <StackPanel>
+     <Button Classes="nav" Content="Store" Command="{Binding NavigateCommand}" CommandParameter="Store"/>
+     <Button Classes="nav" Content="Installed" Command="{Binding NavigateCommand}" CommandParameter="Installed"/>
+     <Button Classes="nav" Content="Favourites" Command="{Binding ShowFavouritesCommand}"/>
+     <Button Classes="nav" Content="Tool assistant" Command="{Binding NavigateCommand}" CommandParameter="Assistant"/>
+     <Button Classes="nav" Content="News &amp; updates" Command="{Binding NavigateCommand}" CommandParameter="News"/>
+     <Button Classes="nav" Content="Developers" Command="{Binding NavigateCommand}" CommandParameter="Developers"/>
+     <Button Classes="nav" Content="Settings &amp; migration" Command="{Binding NavigateCommand}" CommandParameter="Settings"/>
+     <Button Classes="nav" Content="Activity log" Command="{Binding NavigateCommand}" CommandParameter="Logs"/>
+    </StackPanel>
+   </DockPanel>
+  </Border>
+  <Grid Grid.Column="1" RowDefinitions="Auto,*" Margin="24">
+   <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,20"><TextBlock Text="{Binding Page}" FontSize="24" FontWeight="SemiBold"/><StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"><Button Content="Refresh catalogue" Command="{Binding RefreshCommand}" IsEnabled="{Binding Idle}"/><Button Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding Busy}"/></StackPanel></Grid>
+   <Grid Grid.Row="1" IsVisible="{Binding IsStore}" RowDefinitions="Auto,*" ColumnDefinitions="*,340">
+    <Grid Grid.ColumnSpan="2" ColumnDefinitions="*,200,Auto" Margin="0,0,0,14"><TextBox PlaceholderText="Search tools, authors or categories" Text="{Binding Search}"/><ComboBox Grid.Column="1" Margin="10,0" ItemsSource="{Binding Categories}" SelectedItem="{Binding Category}" HorizontalAlignment="Stretch"/><CheckBox Grid.Column="2" Content="Favourites only" IsChecked="{Binding FavouritesOnly}"/></Grid>
+    <Grid Grid.Row="1" RowDefinitions="*,Auto">
+     <ListBox Name="ToolList" ItemsSource="{Binding VisibleTools}" SelectedItem="{Binding SelectedTool}" Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,14,0">
+      <ListBox.ItemTemplate><DataTemplate x:DataType="vm:ToolCardViewModel">
+       <Border Classes="card"><Grid ColumnDefinitions="48,*,Auto"><Border Background="#227EED" CornerRadius="8" Width="38" Height="38" VerticalAlignment="Top"><TextBlock Text="{Binding Initial}" Foreground="White" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+        <StackPanel Grid.Column="1" Spacing="4"><TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Author}" Classes="caption"/><TextBlock Text="{Binding Category}" Classes="caption"/><TextBlock Text="{Binding Compatibility}" Classes="caption"/></StackPanel>
+        <StackPanel Grid.Column="2" Spacing="5" HorizontalAlignment="Right"><TextBlock Text="{Binding Version}"/><TextBlock Text="{Binding UpdateStatus}" Classes="caption"/><TextBlock Text="★" IsVisible="{Binding IsFavourite}" Foreground="#EBAA26" FontSize="20"/></StackPanel>
+       </Grid></Border>
+      </DataTemplate></ListBox.ItemTemplate>
+     </ListBox><TextBlock Grid.Row="1" Text="{Binding VisibleCount}" Classes="caption" Margin="0,10,0,0"/>
+    </Grid>
+    <ScrollViewer Grid.Row="1" Grid.Column="1"><StackPanel Spacing="12" IsVisible="{Binding HasSelection}">
+     <TextBlock Text="{Binding SelectedTool.Name}" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap"/>
+     <TextBlock Text="{Binding SelectedTool.Author}" Classes="caption"/>
+     <TextBlock Text="{Binding SelectedTool.Compatibility}" TextWrapping="Wrap"/>
+     <Button Content="★ Toggle favourite" Command="{Binding FavouriteCommand}" IsEnabled="{Binding Idle}"/>
+     <TextBlock Text="Available versions" FontWeight="SemiBold"/>
+     <ComboBox Name="PackagePicker" ItemsSource="{Binding AvailablePackages}" SelectedItem="{Binding SelectedPackage, Mode=TwoWay}" HorizontalAlignment="Stretch">
+      <ComboBox.ItemTemplate><DataTemplate x:DataType="model:ToolPackage"><TextBlock Text="{Binding FileName}"/></DataTemplate></ComboBox.ItemTemplate>
+     </ComboBox>
+     <Button Name="InstallButton" Content="Install selected version" Command="{Binding InstallCommand}" IsEnabled="{Binding CanInstall}" HorizontalAlignment="Stretch"/>
+     <Button Content="README" Command="{Binding ReadmeCommand}" IsEnabled="{Binding Idle}"/>
+     <Button Content="Open user guide" Command="{Binding GuideCommand}" IsEnabled="{Binding Idle}"/>
+     <TextBlock Text="Installed versions / rollback" FontWeight="SemiBold" Margin="0,15,0,0"/>
+     <ComboBox ItemsSource="{Binding InstalledVersions}" SelectedItem="{Binding SelectedInstallation, Mode=TwoWay}" HorizontalAlignment="Stretch"><ComboBox.ItemTemplate><DataTemplate x:DataType="model:InstalledTool"><TextBlock Text="{Binding Version}"/></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+     <Button Content="Open selected installed version" Command="{Binding LaunchCommand}" IsEnabled="{Binding CanLaunch}" HorizontalAlignment="Stretch"/>
+     <Button Content="Use as default version" Command="{Binding PinVersionCommand}" IsEnabled="{Binding CanLaunch}"/>
+     <Button Content="Remove selected version…" Command="{Binding RemoveVersionCommand}" IsEnabled="{Binding CanLaunch}"/>
+     <TextBlock Text="{Binding SelectedInstallation.Directory}" Classes="caption" TextWrapping="Wrap"/>
+    </StackPanel></ScrollViewer>
+   </Grid>
+   <Grid Grid.Row="1" IsVisible="{Binding IsAssistant}" RowDefinitions="Auto,Auto,*"><StackPanel Orientation="Horizontal" Spacing="10"><TextBox Width="500" Text="{Binding Query}" PlaceholderText="Describe your task…"/><Button Content="Find tools" Command="{Binding RecommendCommand}"/><Button Content="Index READMEs" Command="{Binding IndexDocumentationCommand}" IsEnabled="{Binding Idle}"/></StackPanel><TextBlock Grid.Row="1" Text="{Binding AssistantStatus}" TextWrapping="Wrap" Margin="0,14"/>
+    <ListBox Grid.Row="2" ItemsSource="{Binding Recommendations}"><ListBox.ItemTemplate><DataTemplate x:DataType="assistant:Recommendation"><StackPanel Margin="12" Spacing="5"><TextBlock Text="{Binding Tool.Name}" FontWeight="SemiBold" FontSize="18"/><TextBlock Text="{Binding Tool.Category}"/><TextBlock Text="{Binding Score, StringFormat='Similarity: {0:P0}'}"/><Button Content="View tool" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectRecommendationCommand}" CommandParameter="{Binding}"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
+   </Grid>
+   <Grid Grid.Row="1" IsVisible="{Binding IsNews}" RowDefinitions="Auto,*,Auto"><TextBlock Text="Announcements on this device (Markdown)" Classes="caption"/><TextBox Grid.Row="1" AcceptsReturn="True" TextWrapping="Wrap" Text="{Binding News}" Margin="0,12"/><StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8"><Button Content="Save local news" Command="{Binding SaveNewsCommand}"/><Button Content="Preview" Command="{Binding PreviewNewsCommand}"/></StackPanel></Grid>
+   <ScrollViewer Grid.Row="1" IsVisible="{Binding IsProfile}"><StackPanel Spacing="12" MaxWidth="650" HorizontalAlignment="Left"><TextBlock Text="Developers in this catalogue" FontSize="18" FontWeight="SemiBold"/><ComboBox ItemsSource="{Binding Authors}" SelectedItem="{Binding ProfileName}" Width="300"/><StackPanel Orientation="Horizontal" Spacing="10"><Button Content="Load shared profile" Command="{Binding LoadSharedProfileCommand}"/><Button Content="Save to Box" Command="{Binding SaveSharedProfileCommand}"/></StackPanel><Image Source="{Binding ProfilePhoto}" Width="160" Height="160" HorizontalAlignment="Left"/><Button Content="Change profile photo…" Command="{Binding ChangePhotoCommand}"/><TextBlock Text="Shared profile message"/><TextBox Text="{Binding ProfileMessage}" AcceptsReturn="True" MinHeight="100" Width="600"/><TextBlock Text="Shared links (one title | URL per line)"/><TextBox Text="{Binding ProfileLinksText}" AcceptsReturn="True" MinHeight="80"/><TextBlock Text="Personal Jira shortcut"/><TextBox Text="{Binding JiraUrl}"/><StackPanel Orientation="Horizontal" Spacing="10"><Button Content="Save profile" Command="{Binding SaveSettingsCommand}"/><Button Content="Open Jira" Command="{Binding OpenJiraCommand}"/></StackPanel><TextBlock Text="Your activity in the last year" FontSize="18" FontWeight="SemiBold" Margin="0,20,0,0"/><SelectableTextBlock Text="{Binding ProfileActivity}"/></StackPanel></ScrollViewer>
+   <ScrollViewer Grid.Row="1" IsVisible="{Binding IsSettings}"><StackPanel Spacing="12" MaxWidth="760" HorizontalAlignment="Stretch">
+    <TextBlock Text="Box Manager server"/><TextBox Text="{Binding BoxManagerUrl}"/><TextBlock Text="Velopack update feed"/><TextBox Text="{Binding UpdateFeedUrl}"/>
+    <TextBlock Text="Theme (System, Light or Dark)"/><TextBox Text="{Binding Theme}"/><Button Content="Save settings" Command="{Binding SaveSettingsCommand}" IsEnabled="{Binding Idle}"/>
+    <TextBlock Text="Application updates" FontSize="18" FontWeight="SemiBold" Margin="0,18,0,0"/><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Check" Command="{Binding CheckUpdatesCommand}"/><Button Content="Download update" Command="{Binding DownloadUpdateCommand}"/><Button Content="Restart to update" Command="{Binding ApplyUpdateCommand}"/></StackPanel><TextBlock Text="{Binding UpdateStatus}" TextWrapping="Wrap"/>
+    <TextBlock Text="Import from the Python application" FontSize="18" FontWeight="SemiBold" Margin="0,18,0,0"/><TextBox PlaceholderText="Existing DinoSaurList folder" Text="{Binding LegacyRoot}"/><TextBlock Text="{Binding LegacySummary}" TextWrapping="Wrap"/><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Preview import" Command="{Binding PreviewLegacyCommand}" IsEnabled="{Binding Idle}"/><Button Content="Import previewed items" Command="{Binding ImportLegacyCommand}" IsEnabled="{Binding Idle}"/></StackPanel>
+    <TextBlock Text="Per-user data directory" FontSize="18" FontWeight="SemiBold" Margin="0,18,0,0"/><SelectableTextBlock Text="{Binding DataDirectory}" TextWrapping="Wrap"/><Button Content="Open data folder" Command="{Binding OpenDataFolderCommand}"/>
+   </StackPanel></ScrollViewer>
+   <ListBox Grid.Row="1" IsVisible="{Binding IsLogs}" ItemsSource="{Binding Logs}"/>
+  </Grid>
+  <Border Grid.Row="1" Grid.Column="1" BorderThickness="0,1,0,0" BorderBrush="#40808080" Padding="24,10"><Grid ColumnDefinitions="*,180"><TextBlock Text="{Binding Status}" TextWrapping="Wrap"/><ProgressBar Grid.Column="1" Value="{Binding Progress}" IsVisible="{Binding Busy}" Height="6" Margin="12,0,0,0"/></Grid></Border>
+ </Grid>
+</Window>

@@ -1,0 +1,120 @@
+name: Native DinoSaurList
+on:
+  push:
+    paths: ['dotnet/**', '.github/workflows/native-dotnet.yml', '.config/dotnet-tools.json', 'News/news.md', 'scripts/check-native-secrets.py']
+  pull_request:
+    paths: ['dotnet/**', '.github/workflows/native-dotnet.yml', 'scripts/check-native-secrets.py']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Preview version for native packages'
+        required: true
+        default: '0.1.0-preview.1'
+permissions:
+  contents: read
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    # This repository is public. Do not run public PR code on the private NPI server.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: python3 scripts/check-native-secrets.py
+      - name: Core and Avalonia UI tests
+        working-directory: dotnet
+        env:
+          DINOSAURLIST_SCREENSHOTS: ${{ runner.temp }}/native-screenshots
+        run: dotnet test --solution DinoSaurList.sln -c Release --no-progress
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ui-evidence
+          path: ${{ runner.temp }}/native-screenshots
+          if-no-files-found: ignore
+  package:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            exe: DinoSaurList.exe
+            channel: win-preview
+          - os: macos-latest
+            rid: osx-arm64
+            exe: DinoSaurList
+            channel: osx-preview
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Determine package version
+        shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $version = $env:REQUESTED_VERSION
+          if (-not $version) { $version = "0.1.0-preview.${{ github.run_number }}" }
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$') { throw 'Invalid version' }
+          "NATIVE_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Verify Core, CLI and UI on native OS
+        working-directory: dotnet
+        run: dotnet test --solution DinoSaurList.sln -c Release --no-progress
+      - name: Publish native desktop
+        working-directory: dotnet
+        shell: pwsh
+        run: |
+          dotnet publish app/DinoSaurList.App.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:Version=$env:NATIVE_VERSION -o ../publish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet publish cli/DinoSaurList.Cli.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:Version=$env:NATIVE_VERSION -o ../publish/cli
+          exit $LASTEXITCODE
+      - name: Restore pinned Velopack packaging tool
+        run: dotnet tool restore
+      - name: Build macOS application icon
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p DinoSaurList.iconset
+          sips -s format png IcoFolder/main.ico --out icon-source.png
+          for size in 16 32 128 256 512; do
+            sips -z "$size" "$size" icon-source.png --out "DinoSaurList.iconset/icon_${size}x${size}.png"
+            double=$((size * 2))
+            sips -z "$double" "$double" icon-source.png --out "DinoSaurList.iconset/icon_${size}x${size}@2x.png"
+          done
+          iconutil -c icns DinoSaurList.iconset -o DinoSaurList.icns
+      - name: Package Windows preview
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: dotnet vpk pack --packId DinoSaurList --packTitle DinoSaurList --packVersion $env:NATIVE_VERSION --packDir publish --mainExe DinoSaurList.exe --icon IcoFolder/main.ico --channel win-preview
+      - name: Package macOS preview
+        if: runner.os == 'macOS'
+        shell: bash
+        run: dotnet vpk pack --packId DinoSaurList --packTitle DinoSaurList --packVersion "$NATIVE_VERSION" --packDir publish --mainExe DinoSaurList --icon DinoSaurList.icns --channel osx-preview
+      - name: Verify generated native package contents
+        shell: pwsh
+        run: |
+          $packages = Get-ChildItem Releases -Filter '*-full.nupkg'
+          if ($packages.Count -eq 0) { throw 'No full native package generated' }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          foreach ($package in $packages) {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($package.FullName)
+            try {
+              foreach ($entry in $zip.Entries) {
+                if ($entry.FullName -match 'Box\.Automation\.WSD|BoxFast|BoxAutomate|Secrets\.cs|base_client\.py') { throw "Legacy credential-bearing file in native package: $($entry.FullName)" }
+              }
+            } finally { $zip.Dispose() }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DinoSaurList-${{ matrix.rid }}-preview
+          path: Releases/*
+          if-no-files-found: error
+          retention-days: 14

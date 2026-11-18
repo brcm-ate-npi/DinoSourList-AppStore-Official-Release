@@ -223,3 +223,11 @@ config-record/dev_profile.json
 config-record/dev_activity.json
 config-record/update.json
 config-record/console_setting.json
+
+# Native .NET port: build output and per-user settings
+**/bin/
+**/obj/
+**/TestResults/
+**/appsettings.local.json
+**/.avalonia-build-tasks/
+**/.local/

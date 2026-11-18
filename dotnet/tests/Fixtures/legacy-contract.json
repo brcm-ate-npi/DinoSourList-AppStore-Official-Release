@@ -1,0 +1,502 @@
+{
+  "source": "src/lib/folder_parser.py at fd4eca5; configparser over 28 real Flow samples",
+  "versionComparisons": [
+    {
+      "a": "0.0.0.0",
+      "b": "0.0.0.0",
+      "result": 0
+    },
+    {
+      "a": "0.0.0.0",
+      "b": "1.2",
+      "result": -1
+    },
+    {
+      "a": "0.0.0.0",
+      "b": "1.2.0.0",
+      "result": -1
+    },
+    {
+      "a": "0.0.0.0",
+      "b": "1.9.99.99",
+      "result": -1
+    },
+    {
+      "a": "0.0.0.0",
+      "b": "1.10.0.0",
+      "result": -1
+    },
+    {
+      "a": "0.0.0.0",
+      "b": "2.0.0.0",
+      "result": -1
+    },
+    {
+      "a": "0.0.0.0",
+      "b": "10.0.0.0",
+      "result": -1
+    },
+    {
+      "a": "1.2",
+      "b": "0.0.0.0",
+      "result": 1
+    },
+    {
+      "a": "1.2",
+      "b": "1.2",
+      "result": 0
+    },
+    {
+      "a": "1.2",
+      "b": "1.2.0.0",
+      "result": 0
+    },
+    {
+      "a": "1.2",
+      "b": "1.9.99.99",
+      "result": -1
+    },
+    {
+      "a": "1.2",
+      "b": "1.10.0.0",
+      "result": -1
+    },
+    {
+      "a": "1.2",
+      "b": "2.0.0.0",
+      "result": -1
+    },
+    {
+      "a": "1.2",
+      "b": "10.0.0.0",
+      "result": -1
+    },
+    {
+      "a": "1.2.0.0",
+      "b": "0.0.0.0",
+      "result": 1
+    },
+    {
+      "a": "1.2.0.0",
+      "b": "1.2",
+      "result": 0
+    },
+    {
+      "a": "1.2.0.0",
+      "b": "1.2.0.0",
+      "result": 0
+    },
+    {
+      "a": "1.2.0.0",
+      "b": "1.9.99.99",
+      "result": -1
+    },
+    {
+      "a": "1.2.0.0",
+      "b": "1.10.0.0",
+      "result": -1
+    },
+    {
+      "a": "1.2.0.0",
+      "b": "2.0.0.0",
+      "result": -1
+    },
+    {
+      "a": "1.2.0.0",
+      "b": "10.0.0.0",
+      "result": -1
+    },
+    {
+      "a": "1.9.99.99",
+      "b": "0.0.0.0",
+      "result": 1
+    },
+    {
+      "a": "1.9.99.99",
+      "b": "1.2",
+      "result": 1
+    },
+    {
+      "a": "1.9.99.99",
+      "b": "1.2.0.0",
+      "result": 1
+    },
+    {
+      "a": "1.9.99.99",
+      "b": "1.9.99.99",
+      "result": 0
+    },
+    {
+      "a": "1.9.99.99",
+      "b": "1.10.0.0",
+      "result": -1
+    },
+    {
+      "a": "1.9.99.99",
+      "b": "2.0.0.0",
+      "result": -1
+    },
+    {
+      "a": "1.9.99.99",
+      "b": "10.0.0.0",
+      "result": -1
+    },
+    {
+      "a": "1.10.0.0",
+      "b": "0.0.0.0",
+      "result": 1
+    },
+    {
+      "a": "1.10.0.0",
+      "b": "1.2",
+      "result": 1
+    },
+    {
+      "a": "1.10.0.0",
+      "b": "1.2.0.0",
+      "result": 1
+    },
+    {
+      "a": "1.10.0.0",
+      "b": "1.9.99.99",
+      "result": 1
+    },
+    {
+      "a": "1.10.0.0",
+      "b": "1.10.0.0",
+      "result": 0
+    },
+    {
+      "a": "1.10.0.0",
+      "b": "2.0.0.0",
+      "result": -1
+    },
+    {
+      "a": "1.10.0.0",
+      "b": "10.0.0.0",
+      "result": -1
+    },
+    {
+      "a": "2.0.0.0",
+      "b": "0.0.0.0",
+      "result": 1
+    },
+    {
+      "a": "2.0.0.0",
+      "b": "1.2",
+      "result": 1
+    },
+    {
+      "a": "2.0.0.0",
+      "b": "1.2.0.0",
+      "result": 1
+    },
+    {
+      "a": "2.0.0.0",
+      "b": "1.9.99.99",
+      "result": 1
+    },
+    {
+      "a": "2.0.0.0",
+      "b": "1.10.0.0",
+      "result": 1
+    },
+    {
+      "a": "2.0.0.0",
+      "b": "2.0.0.0",
+      "result": 0
+    },
+    {
+      "a": "2.0.0.0",
+      "b": "10.0.0.0",
+      "result": -1
+    },
+    {
+      "a": "10.0.0.0",
+      "b": "0.0.0.0",
+      "result": 1
+    },
+    {
+      "a": "10.0.0.0",
+      "b": "1.2",
+      "result": 1
+    },
+    {
+      "a": "10.0.0.0",
+      "b": "1.2.0.0",
+      "result": 1
+    },
+    {
+      "a": "10.0.0.0",
+      "b": "1.9.99.99",
+      "result": 1
+    },
+    {
+      "a": "10.0.0.0",
+      "b": "1.10.0.0",
+      "result": 1
+    },
+    {
+      "a": "10.0.0.0",
+      "b": "2.0.0.0",
+      "result": 1
+    },
+    {
+      "a": "10.0.0.0",
+      "b": "10.0.0.0",
+      "result": 0
+    }
+  ],
+  "installedFolders": [
+    {
+      "name": "BandMaster",
+      "version": "1.0.0.0",
+      "author": "SuetLi",
+      "raw_name": "BandMaster_V-1.0.0.0_A-SuetLi"
+    },
+    {
+      "name": "QuickMi2e",
+      "version": "7.1.0.0",
+      "author": "RoeyYee",
+      "raw_name": "QuickMi2e-V-7.1.0.0_A-RoeyYee"
+    },
+    {
+      "name": "SbinValidation@master",
+      "version": "2.0.0.0",
+      "author": "RoeyJiea",
+      "raw_name": "SbinValidation@master_V-2.0.0.0_A-RoeyJiea"
+    },
+    {
+      "name": "A-Tool",
+      "version": "1.2.3.4",
+      "author": "Author-Name",
+      "raw_name": "A-Tool-V-1.2.3.4-A-Author-Name"
+    }
+  ],
+  "flows": [
+    {
+      "id": "408168561389",
+      "author": "NPI DEV",
+      "category": "Dev Tool",
+      "execution": "run.cmd",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "388442422891",
+      "author": "RoeyYee",
+      "category": "Dev Tool",
+      "execution": "init.cmd",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "368894919788",
+      "author": "SuetLi",
+      "category": "Foundation",
+      "execution": "SparaManager.exe",
+      "autoInstall": true,
+      "autoDelete": true
+    },
+    {
+      "id": "381791116439",
+      "author": "RoeyYee",
+      "category": "MISC",
+      "execution": "run.cmd",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "381795966655",
+      "author": "Kenny",
+      "category": "MISC",
+      "execution": "run.cmd",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "419929029590",
+      "author": "Kenny",
+      "category": "Foundation",
+      "execution": "run.cmd",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "383235071544",
+      "author": "RoeyJiea",
+      "category": "Operation",
+      "execution": "run.cmd",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "408467067810",
+      "author": "Angelene",
+      "category": "Foundation",
+      "execution": "DataAnalysisHelper.exe",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "369387796694",
+      "author": "RoeyJiea",
+      "category": "Operation",
+      "execution": "ClothoHeaderOrganizer.exe",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "382031068090",
+      "author": "SongZhi",
+      "category": "Test Package",
+      "execution": "Python- FBAR_generator (rev6.3).exe",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "386674784485",
+      "author": "RoeyYee",
+      "category": "Operation",
+      "execution": "run.bat",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "381825937971",
+      "author": "Senior",
+      "category": "MISC",
+      "execution": "Lazy Worm Module Trace Plotter.exe",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "380219190867",
+      "author": "HanHsiung",
+      "category": "Foundation",
+      "execution": "MPTS.bat",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "382047505523",
+      "author": "Song Zhi",
+      "category": "JMP Plugin",
+      "execution": "Module_Test_Analysis_Tool.jmpaddin",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "406394524423",
+      "author": "DahHaur",
+      "category": "Operation",
+      "execution": "MySortingToolTester.application",
+      "autoInstall": true,
+      "autoDelete": true
+    },
+    {
+      "id": "399165116411",
+      "author": "HanHsiung",
+      "category": "Foundation",
+      "execution": "Padma.bat",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "407959881530",
+      "author": "Kenny",
+      "category": "Test Package",
+      "execution": "run.cmd",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "383232755932",
+      "author": "DahHaur",
+      "category": "Operation",
+      "execution": "PasswordGeneration.exe",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "381786743608",
+      "author": "WanLing",
+      "category": "Test Package",
+      "execution": "ProductionConfigEditor.exe",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "369117752772",
+      "author": "RoeyYee",
+      "category": "Foundation",
+      "execution": "run.cmd",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "437941854559",
+      "author": "RoeyYee",
+      "category": "Foundation",
+      "execution": "run.cmd",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "368892942501",
+      "author": "RoeyJiea",
+      "category": "Test Package",
+      "execution": "SBINValidate.exe",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "423445439107",
+      "author": "RoeyYee",
+      "category": "Inari Relavant",
+      "execution": "Split-Spread.exe",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "369509596389",
+      "author": "RoeyJiea",
+      "category": "Foundation",
+      "execution": "StatDex.exe",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "407943793387",
+      "author": "Kenny",
+      "category": "Test Package",
+      "execution": "run.cmd",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "387382573268",
+      "author": "XinRou",
+      "category": "Test Package",
+      "execution": "run.cmd",
+      "autoInstall": true,
+      "autoDelete": false
+    },
+    {
+      "id": "396438510931",
+      "author": "SongZhi",
+      "category": "Test Package",
+      "execution": "TSF SBIN Generator.exe",
+      "autoInstall": false,
+      "autoDelete": false
+    },
+    {
+      "id": "409876869557",
+      "author": "Ronald Lim",
+      "category": "Inari Relavant",
+      "execution": "TraceViewer.exe",
+      "autoInstall": false,
+      "autoDelete": false
+    }
+  ]
+}

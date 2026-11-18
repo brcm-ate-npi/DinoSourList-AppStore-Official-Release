@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><PackageReference Include="Velopack" Version="1.2.158" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../News/news.md" Link="Assets/news.md" /></ItemGroup>
+</Project>
