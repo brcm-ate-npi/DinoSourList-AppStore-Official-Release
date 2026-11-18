@@ -30,7 +30,8 @@ public static class CliApplication
         catalogue [--refresh] [--mode 1..4] [--selected FOLDER,FOLDER]                    List tool metadata (cache first)
         readme --tool ID                         Print the tool README
         guide --tool ID                          Download the guide and print its path
-        recommend --query TEXT                   Rank tools using their READMEs
+        chat --query TEXT [--context TEXT]       Legacy-style response and follow-up context
+                recommend --query TEXT                   Rank tools using their READMEs
         installed                               List installed versions
         install --tool ID [--version VERSION]    Download, verify and install a package
         launch --tool ID [--version VERSION]     Start the pinned/latest installed version
@@ -63,13 +64,20 @@ public static class CliApplication
             void Confirm() { if (!args.Contains("--yes")) throw new ArgumentException("This operation requires --yes."); }
             switch (command)
             {
+                case "normalize":
+                    var sourceText = Option("--file") is { } textFile ? await File.ReadAllTextAsync(textFile, token) : Required("--text");
+                    if (sourceText.Length > 2 * 1024 * 1024) throw new ArgumentException("Text exceeds 2 MiB.");
+                    Json(ToolAssistant.Tokenize(sourceText)); break;
                 case "catalogue": Json(await Catalogue()); break;
                 case "readme": await output.WriteLineAsync(await new DocumentationService(box, storage).ReadmeAsync(await Tool(), token)); break;
                 case "guide": Json(new { path = await new DocumentationService(box, storage).GuideAsync(await Tool(), token) }); break;
+                case "chat":
                 case "recommend":
                     var input = new List<(ToolEntry, string)>(); var docs = new DocumentationService(box, storage);
-                    foreach (var tool in (await Catalogue()).Tools) input.Add((tool, await docs.ReadmeAsync(tool, token)));
-                    var assistant = new ToolAssistant(); assistant.Index(input); Json(assistant.Recommend(Required("--query"))); break;
+                    foreach (var tool in (await Catalogue()).Tools.Where(t => DocumentationService.ReadmeFile(t) is not null)) input.Add((tool, await docs.ReadmeAsync(tool, token)));
+                    var assistant = new ToolAssistant(); assistant.Index(input);
+                    if (command == "chat") { var chat = new AssistantChat(assistant); if (Option("--context") is { } context) chat.Reply(context); Json(chat.Reply(Required("--query"))); }
+                    else Json(assistant.Recommend(Required("--query"))); break;
                 case "installed": Json(await installations.LoadAsync(token)); break;
                 case "install":
                     var selected = await Tool(); var version = Option("--version");

@@ -63,6 +63,37 @@ public sealed class RegistryTests
         }
     }
     [Fact]
+    public void NativeEnglishNormalizationMatchesLegacyNltkCorpus()
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "normalization-contract.json")));
+        var normalizer = new EnglishNormalizer();
+        foreach (var row in doc.RootElement.EnumerateArray())
+            Assert.Equal(row.GetProperty("tokens").EnumerateArray().Select(t => t.GetString()), normalizer.Preprocess(row.GetProperty("text").GetString()!));
+    }
+    [Fact]
+    public void AssistantChatMatchesLegacyConversationTemplatesAndFollowups()
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "chat-contract.json")));
+        var assistant = new ToolAssistant();
+        var input = doc.RootElement.GetProperty("readmes").EnumerateArray().Select((r, i) =>
+        {
+            var readme = r.GetString()!;
+            var name = ToolAssistant.Metadata(readme, "TOOL", "Unknown"); var author = ToolAssistant.Metadata(readme, "AUTHOR", "Unknown");
+            return (new ToolEntry((i + 1).ToString(), name + "-" + author, name, author, "MISC", [], FlowDocument.Parse(""), []), readme);
+        });
+        assistant.Index(input); var chat = new AssistantChat(assistant);
+        foreach (var row in doc.RootElement.GetProperty("conversation").EnumerateArray())
+            Assert.Equal(row.GetProperty("response").GetString(), chat.Reply(row.GetProperty("query").GetString()!).Text);
+    }
+    [Fact]
+    public void DirectToolNameCannotBeShadowedByItsShorterPrefix()
+    {
+        var first = new ToolEntry("1", "Analyzer-A", "Analyzer", "A", "MISC", [], FlowDocument.Parse(""), []);
+        var longer = first with { Id = "2", Name = "AnalyzerExtended" };
+        var assistant = new ToolAssistant(); assistant.Index([(first, "TOOL: Analyzer"), (longer, "TOOL: AnalyzerExtended")]);
+        Assert.Equal("2", Assert.Single(assistant.Recommend("explain AnalyzerExtended")).Tool.Id);
+    }
+    [Fact]
     public void AssistantFindsRelevantToolAndDoesNotInventAnswers()
     {
         var flow = FlowDocument.Parse("");

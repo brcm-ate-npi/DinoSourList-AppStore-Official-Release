@@ -6,9 +6,12 @@ $env:DINOSAURLIST_DATA_DIR = $data
 $tool = @{
   id='1'; folderName='Preview-Author'; name='Preview'; author='Author'; category='MISC'
   packages=@(@{fileId='2';fileName='v1.0.0-any.zip';version='1.0.0';size=1;sha1=('a'*40);platform='any'})
-  flow=@{sections=@{platform=@{supported='any'}}}; files=@()
+  flow=@{sections=@{platform=@{supported='any'}}}; files=@(@{id='3';name='README.md';type='file';sha1=('b'*40)})
 }
 @{fetchedAt=[DateTimeOffset]::UtcNow.ToString('o'); tools=@($tool); warnings=@()} | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $data 'catalogue.json') -Encoding utf8
+$docs = Join-Path $data 'Documents'
+New-Item -ItemType Directory -Force $docs | Out-Null
+"TOOL: Preview`nAUTHOR: Author`nPURPOSE: Validate the native engineering toolbox.`n## Overview`nPreview fixture." | Set-Content (Join-Path $docs ('3-' + ('b'*40) + '.md')) -Encoding utf8
 if ($OperatingSystem -eq 'Windows') {
   $setup = Get-ChildItem Releases -Filter '*-Setup.exe' | Select-Object -First 1
   if (-not $setup) { throw 'Setup.exe missing' }
@@ -38,3 +41,6 @@ $cli = Join-Path (Split-Path $app) $cliName
 if (-not (Test-Path $cli)) { throw "Installed CLI missing: $cli" }
 & $cli catalogue --data-dir $data | Set-Content (Join-Path $evidence 'installed-cli.json') -Encoding utf8
 if ($LASTEXITCODE -ne 0) { throw 'Installed self-contained CLI failed' }
+
+& $cli chat --query Preview --data-dir $data | Set-Content (Join-Path $evidence 'installed-assistant.json') -Encoding utf8
+if ($LASTEXITCODE -ne 0) { throw 'Installed assistant/model failed' }

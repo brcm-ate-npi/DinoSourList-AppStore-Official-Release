@@ -1,0 +1,5 @@
+NLTK inference code adapted to C# from NLTK 3.10.4 (2026-11-18). Original project: https://github.com/nltk/nltk; Copyright 2001-2026 NLTK Project.
+Perceptron inference based on NLTK Matthew Honnibal implementation; model distributed by NLTK data as MIT-licensed (https://github.com/sloria/textblob-aptagger).
+WordNet 3.0 Copyright 2006 Princeton University.
+English stopwords distributed by NLTK: https://github.com/nltk/nltk_data/tree/gh-pages/packages/corpora.
+The gzip model contains only public English linguistic data; no Box/application documents.

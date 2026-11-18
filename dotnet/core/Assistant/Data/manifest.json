@@ -1,0 +1,9 @@
+{
+  "nltk": "3.10.4",
+  "sha256": "39da10c16665487ca3edaa105611301fbc06e57ef9b674e13941e174dbe62368",
+  "uncompressedBytes": 7431655,
+  "sources": [
+    "https://github.com/nltk/nltk_data/tree/gh-pages/packages/taggers",
+    "https://wordnet.princeton.edu/license-and-commercial-use"
+  ]
+}

@@ -36,6 +36,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly ToolLauncher launcher = new();
     private readonly ActivityStore activity;
     private readonly ToolAssistant assistant = new();
+    private readonly AssistantChat chat;
     private readonly AppUpdateService updater = new();
     private readonly Dictionary<string, string> readmes = [];
     private Dictionary<string, string> activeVersions = [];
@@ -65,6 +66,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double progress;
     [ObservableProperty] private string query = "";
     [ObservableProperty] private string assistantStatus = "Searches tool names and cached READMEs with TF-IDF. Index documentation to include the full descriptions.";
+    [ObservableProperty] private string assistantResponse = "";
     [ObservableProperty] private string readme = "Select a tool to read its documentation.";
     [ObservableProperty] private string news = "";
     [ObservableProperty] private string profileName = "";
@@ -102,7 +104,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public string VisibleCount => $"{VisibleTools.Count()} of {Tools.Count} tools";
     public MainViewModel(string? dataRoot = null)
     {
-        Storage = new(dataRoot); installations = new(Storage); state = new(Storage); installedTools = new(Storage, installations, launcher); activity = new(Storage); ConfigureClient();
+        chat = new(assistant); Storage = new(dataRoot); installations = new(Storage); state = new(Storage); installedTools = new(Storage, installations, launcher); activity = new(Storage); ConfigureClient();
     }
     private void ConfigureClient()
     {
@@ -244,24 +246,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         DocumentRequested?.Invoke(tool.Name, Readme);
     });
     public event Action<string, string>? DocumentRequested;
-    [RelayCommand]
-    private async Task IndexDocumentationAsync() => await GuardAsync(async token =>
+    private async Task LoadAssistantDocumentsAsync(CancellationToken token)
     {
-        foreach (var tool in allTools)
+        foreach (var tool in allTools.Where(t => DocumentationService.ReadmeFile(t) is not null))
         {
             Status = $"Indexing {tool.Name}";
             try { readmes[tool.Id] = await documents.ReadmeAsync(tool, token); }
             catch (HttpRequestException) { Log($"README unavailable: {tool.Name}"); }
         }
-        assistant.Index(allTools.Select(t => (t, readmes.GetValueOrDefault(t.Id, ""))));
-        AssistantStatus = $"Indexed {readmes.Count} README documents. This is keyword/TF-IDF retrieval, not a generative model."; Status = AssistantStatus;
-    });
-    [RelayCommand]
-    private void Recommend()
-    {
-        Recommendations.Clear(); foreach (var value in assistant.Recommend(Query)) Recommendations.Add(value);
-        AssistantStatus = Recommendations.Count == 0 ? "No matching documentation. Try other task terms or index the READMEs." : $"{Recommendations.Count} matching tools.";
+        assistant.Index(allTools.Where(t => readmes.ContainsKey(t.Id)).Select(t => (t, readmes[t.Id]))); chat.Reset();
+        AssistantStatus = $"Indexed {readmes.Count} README documents with the legacy English NLP/TF-IDF pipeline.";
     }
+    [RelayCommand]
+    private async Task IndexDocumentationAsync() => await GuardAsync(LoadAssistantDocumentsAsync);
+    [RelayCommand]
+    private async Task RecommendAsync() => await GuardAsync(async token =>
+    {
+        if (readmes.Count == 0) await LoadAssistantDocumentsAsync(token);
+        var reply = chat.Reply(Query); AssistantResponse = reply.Text;
+        Recommendations.Clear(); foreach (var value in reply.Tools) Recommendations.Add(value);
+        AssistantStatus = $"{Recommendations.Count} matching tools.";
+    });
     [RelayCommand]
     private void SelectRecommendation(Recommendation? value)
     {

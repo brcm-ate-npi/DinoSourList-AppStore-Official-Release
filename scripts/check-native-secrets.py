@@ -6,6 +6,9 @@ already published credentials is a separate operational task. Never print values
 """
 from pathlib import Path
 import re
+import gzip
+import hashlib
+import json
 import sys
 
 root = Path(__file__).resolve().parents[1]
@@ -21,6 +24,13 @@ for path in [* (root / 'dotnet').rglob('*'), * (root / '.github' / 'workflows').
         continue
     if path.suffix.lower() in {'.dll', '.exe', '.pdb', '.pfx', '.key', '.pem'}:
         failed.append(str(path.relative_to(root)))
+        continue
+    if path.name == 'english-nltk.json.gz':
+        manifest = json.loads(path.with_name('manifest.json').read_text())
+        if hashlib.sha256(path.read_bytes()).hexdigest() != manifest['sha256']:
+            failed.append(str(path.relative_to(root)))
+        if any(p.search(gzip.decompress(path.read_bytes())) for p in patterns):
+            failed.append(str(path.relative_to(root)))
         continue
     if path.suffix not in {'.cs', '.json', '.csproj', '.props', '.targets', '.axaml', '.yml'}:
         continue

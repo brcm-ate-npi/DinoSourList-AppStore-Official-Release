@@ -25,9 +25,10 @@ public sealed class DocumentationService(IBoxClient box, AppStorage storage)
         if (!File.Exists(target)) await box.DownloadAsync(file, target, null, token);
         return target;
     }
+    public static BoxItem? ReadmeFile(ToolEntry tool) => tool.FindFile(tool.Flow.Get("readme", "file", "README.md")) ?? tool.FindFile("README.md");
     public async Task<string> ReadmeAsync(ToolEntry tool, CancellationToken token = default)
     {
-        var file = tool.FindFile(tool.Flow.Get("readme", "file", "README.md")) ?? tool.FindFile("README.md");
+        var file = ReadmeFile(tool);
         if (file is null) return "# " + tool.Name + "\n\nNo README is listed for this tool.";
         var folder = Path.Combine(storage.Root, "Documents"); Directory.CreateDirectory(folder);
         var key = new string((file.Id + "-" + file.Sha1).Where(c => char.IsAsciiLetterOrDigit(c) || c == '-').ToArray());
