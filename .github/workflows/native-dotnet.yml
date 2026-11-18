@@ -102,8 +102,10 @@ jobs:
         env:
           DINOSAURLIST_SCREENSHOTS: ${{ runner.temp }}/native-screenshots
         run: dotnet test --solution DinoSaurList.sln -c Release --no-progress
-      - uses: actions/upload-artifact@v7.0.2
+      - name: Upload optional headless screenshots
+        uses: actions/upload-artifact@v7.0.2
         if: always()
+        continue-on-error: true
         with:
           name: native-ui-evidence
           path: ${{ runner.temp }}/native-screenshots
