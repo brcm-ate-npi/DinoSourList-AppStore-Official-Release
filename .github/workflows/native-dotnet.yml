@@ -3,7 +3,7 @@ on:
   push:
     branches: [main, 'feat/avalonia-port']
     tags: ['v*']
-    paths: ['dotnet/**', '.github/workflows/native-dotnet.yml', '.config/dotnet-tools.json', 'News/news.md', 'scripts/check-native-secrets.py', 'scripts/native-install-smoke.ps1', 'scripts/deploy-native-feed.sh', 'News/link.md']
+    paths: ['dotnet/**', '.github/workflows/native-dotnet.yml', '.config/dotnet-tools.json', 'News/news.md', 'scripts/check-native-secrets.py', 'scripts/native-install-smoke.ps1', 'scripts/*native*macos.sh', 'scripts/deploy-native-feed.sh', 'News/link.md']
   workflow_dispatch:
     inputs:
       version:
@@ -66,6 +66,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - name: Determine package version
+        if: runner.os == 'Windows'
         shell: pwsh
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
@@ -83,12 +84,14 @@ jobs:
         working-directory: dotnet
         run: dotnet test --solution DinoSaurList.sln -c Release --no-progress
       - name: Clear native build outputs from previous runner jobs
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           foreach ($path in @('publish', 'Releases', 'DinoSaurList.iconset')) {
             if (Test-Path $path) { Remove-Item $path -Recurse -Force }
           }
       - name: Publish native desktop
+        if: runner.os == 'Windows'
         working-directory: dotnet
         shell: pwsh
         run: |
@@ -98,27 +101,19 @@ jobs:
           exit $LASTEXITCODE
       - name: Restore pinned Velopack packaging tool
         run: dotnet tool restore
-      - name: Build macOS application icon
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          mkdir -p DinoSaurList.iconset
-          sips -s format png IcoFolder/main.ico --out icon-source.png
-          for size in 16 32 128 256 512; do
-            sips -z "$size" "$size" icon-source.png --out "DinoSaurList.iconset/icon_${size}x${size}.png"
-            double=$((size * 2))
-            sips -z "$double" "$double" icon-source.png --out "DinoSaurList.iconset/icon_${size}x${size}@2x.png"
-          done
-          iconutil -c icns DinoSaurList.iconset -o DinoSaurList.icns
       - name: Package Windows preview
         if: runner.os == 'Windows'
         shell: pwsh
         run: dotnet vpk pack --packId DinoSaurListNative --packTitle DinoSaurList --packVersion $env:NATIVE_VERSION --packDir publish --mainExe DinoSaurList.exe --icon IcoFolder/main.ico --channel $env:NATIVE_CHANNEL
-      - name: Package macOS preview
+      - name: Build and install macOS preview without PowerShell
         if: runner.os == 'macOS'
         shell: bash
-        run: dotnet vpk pack --packId DinoSaurListNative --packTitle DinoSaurList --packVersion "$NATIVE_VERSION" --packDir publish --mainExe DinoSaurList --icon DinoSaurList.icns --channel "$NATIVE_CHANNEL"
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: ./scripts/build-native-macos.sh
       - name: Install preview and exercise native UI and CLI
+        if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/native-install-smoke.ps1 -OperatingSystem '${{ runner.os }}'
       - uses: actions/upload-artifact@v4
@@ -128,6 +123,7 @@ jobs:
           path: ${{ runner.temp }}/native-installed-evidence
           if-no-files-found: ignore
       - name: Verify generated native package contents
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $packages = Get-ChildItem Releases -Filter '*-full.nupkg'
