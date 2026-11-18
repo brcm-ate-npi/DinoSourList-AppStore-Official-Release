@@ -21,7 +21,13 @@ internal static class Program
             if (smokeIndex + 1 >= args.Length) throw new ArgumentException("--smoke-test-output requires a file prefix.");
             NativeSmoke.OutputPrefix = args[smokeIndex + 1];
         }
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        try { BuildAvaloniaApp().StartWithClassicDesktopLifetime(args); }
+        catch (Exception error) when (NativeSmoke.OutputPrefix is { } prefix)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(prefix))!);
+            File.WriteAllText(prefix + ".error.txt", error.ToString());
+            Environment.ExitCode = 1;
+        }
     }
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont().LogToTrace();
 }

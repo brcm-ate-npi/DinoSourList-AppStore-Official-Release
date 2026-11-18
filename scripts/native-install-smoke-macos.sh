@@ -29,22 +29,35 @@ if [ ! -f "$app" ]; then app="$install_root/DinoSaurListNative.app/Contents/MacO
 evidence="$RUNNER_TEMP/native-installed-evidence"
 mkdir -p "$evidence"
 prefix="$evidence/installed-ui"
-# LaunchServices puts the Cocoa app in the logged-in GUI session; direct Mach-O execution
-# from a background runner can fail to obtain the native display-link render timer.
+# Run the UI in the user's Aqua bootstrap domain, rather than the background runner domain.
 system_profiler SPDisplaysDataType | grep -E 'Displays:|Display Type:|Online:|Resolution:' || true
-bundle="${app%/Contents/MacOS/DinoSaurList}"
-open -W -n "$bundle" --args --data-dir "$DINOSAURLIST_DATA_DIR" --smoke-test-output "$prefix" &
-app_pid=$!
-trap 'kill "$app_pid" 2>/dev/null || true' EXIT
-finished=false
+label="net.brcm.dinosaurlist.ci.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT"
+agent="$RUNNER_TEMP/$label.plist"
+plutil -create xml1 "$agent"
+plutil -insert Label -string "$label" "$agent"
+plutil -insert ProgramArguments -array "$agent"
+plutil -insert ProgramArguments.0 -string "$app" "$agent"
+plutil -insert ProgramArguments.1 -string '--data-dir' "$agent"
+plutil -insert ProgramArguments.2 -string "$DINOSAURLIST_DATA_DIR" "$agent"
+plutil -insert ProgramArguments.3 -string '--smoke-test-output' "$agent"
+plutil -insert ProgramArguments.4 -string "$prefix" "$agent"
+plutil -insert RunAtLoad -bool YES "$agent"
+plutil -insert ProcessType -string Interactive "$agent"
+plutil -insert StandardOutPath -string "$prefix.stdout.log" "$agent"
+plutil -insert StandardErrorPath -string "$prefix.stderr.log" "$agent"
+domain="gui/$(id -u)"
+launchctl bootstrap "$domain" "$agent"
+trap 'launchctl bootout "$domain/$label" 2>/dev/null || true' EXIT
 for ((second=0; second<60; second++)); do
-  if ! kill -0 "$app_pid" 2>/dev/null; then finished=true; break; fi
+  if [ -s "$prefix.json" ] || [ -s "$prefix.error.txt" ]; then break; fi
   sleep 1
 done
-if [ "$finished" != true ]; then echo 'Installed app timed out'; exit 1; fi
-wait "$app_pid"
+launchctl bootout "$domain/$label" 2>/dev/null || true
 trap - EXIT
-[ -s "$prefix.png" ] && [ -s "$prefix.json" ] || { echo 'Installed UI evidence missing'; exit 1; }
+if [ ! -s "$prefix.png" ] || [ ! -s "$prefix.json" ]; then
+  for log in "$prefix.error.txt" "$prefix.stdout.log" "$prefix.stderr.log"; do [ ! -f "$log" ] || cat "$log"; done
+  echo 'Installed UI evidence missing from the Aqua session'; exit 1
+fi
 grep -Eq '"visible": true' "$prefix.json"
 grep -Eq '"tools": 1' "$prefix.json"
 cli="$(dirname "$app")/DinoSaurList.Cli"
