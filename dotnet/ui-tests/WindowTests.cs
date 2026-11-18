@@ -53,7 +53,16 @@ public sealed class WindowTests
     public void ReadmeViewerRendersHeadingCodeAndLinksWithoutWebView()
     {
         var window = new DocumentWindow("README", "# Title\n\nSome **text**\n```\ncode();\n```\n[Guide](https://example.test/guide)"); window.Show();
-        try { Assert.Contains(window.GetVisualDescendants().OfType<SelectableTextBlock>(), t => t.Text == "Title"); }
+        try
+        {
+            Dispatcher.UIThread.RunJobs();
+            var viewer = Assert.IsType<global::Markdown.Avalonia.Full.MarkdownScrollViewer>(window.Content);
+            Assert.Contains(viewer.GetVisualDescendants(), c => c.Bounds.Width > 0 && c.Bounds.Height > 0);
+            Assert.True(viewer.Plugins.HyperlinkCommand!.CanExecute("https://example.test/guide"));
+            Assert.False(viewer.Plugins.HyperlinkCommand.CanExecute("file:///tmp/tool.exe"));
+            var output = Environment.GetEnvironmentVariable("DINOSAURLIST_SCREENSHOTS");
+            if (output is not null) { Directory.CreateDirectory(output); window.CaptureRenderedFrame()?.Save(Path.Combine(output, "readme.png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default); }
+        }
         finally { window.Close(); }
     }
 }

@@ -3,29 +3,74 @@ using Velopack.Sources;
 
 namespace DinoSaurList.Core.Updates;
 
-// Same lifecycle as NPISpectreConverter; server feed only, with no GithubSource/PAT branch.
+// Release assets only. No branch polling, source checkout, Python updater or embedded token.
 public sealed class AppUpdateService
 {
+    public const string DefaultFeed = "https://npi-service.kor.broadcom.net/dinosaurlist/";
+    public const string GithubRepository = "https://github.com/brcm-ate-npi/DinoSourList-AppStore-Official-Release";
+    private readonly SemaphoreSlim gate = new(1, 1);
     private UpdateManager? manager;
     private UpdateInfo? available;
     public static string Version => typeof(AppUpdateService).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
+    public static IUpdateSource Source(string feed)
+    {
+        if (!Uri.TryCreate(feed, UriKind.Absolute, out var uri) || uri.Scheme != "https" || !string.IsNullOrEmpty(uri.UserInfo)) throw new ArgumentException("Update feed must use HTTPS without credentials.");
+        return feed.TrimEnd('/').Equals(GithubRepository, StringComparison.OrdinalIgnoreCase)
+            ? new GithubSource(GithubRepository, accessToken: null, prerelease: true)
+            : new SimpleWebSource(feed.TrimEnd('/'));
+    }
+    private async Task<string> CheckCoreAsync(string feed)
+    {
+        available = null;
+        manager = new UpdateManager(Source(feed));
+        if (!manager.IsInstalled) return "Portable/development mode: download the installer to enable automatic updates.";
+        try { available = await manager.CheckForUpdatesAsync(); }
+        catch when (feed.TrimEnd('/').Equals(DefaultFeed.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+        {
+            // The public repository needs no PAT. Keep the installed channel: preview never leaks into stable.
+            manager = new UpdateManager(Source(GithubRepository));
+            available = await manager.CheckForUpdatesAsync();
+        }
+        return available is null ? "You have the latest version." : $"Version {available.TargetFullRelease.Version} is available.";
+    }
     public async Task<string> CheckAsync(string feed)
     {
-        if (!Uri.TryCreate(feed, UriKind.Absolute, out var uri) || uri.Scheme != "https") throw new ArgumentException("Update feed must use HTTPS.");
-        manager = new UpdateManager(new SimpleWebSource(feed.TrimEnd('/')));
-        if (!manager.IsInstalled) return "Portable/development mode: download the installer to enable automatic updates.";
-        available = await manager.CheckForUpdatesAsync();
-        return available is null ? "You have the latest version." : $"Version {available.TargetFullRelease.Version} is available. Choose Download update to prepare it.";
+        await gate.WaitAsync();
+        try { return await CheckCoreAsync(feed); }
+        finally { gate.Release(); }
     }
-    public async Task<string> DownloadAsync(Action<int> progress)
+    private async Task<string> DownloadCoreAsync(Action<int> progress, CancellationToken token)
     {
-        if (manager is null || available is null) throw new InvalidOperationException("Check for updates first.");
-        await manager.DownloadUpdatesAsync(available, progress);
-        return "Update downloaded. Choose Restart to update when your work is saved.";
+        if (manager is null) throw new InvalidOperationException("Check for updates first.");
+        if (available is null) return "No update is available.";
+        await manager.DownloadUpdatesAsync(available, progress, token);
+        return "Update downloaded. It will be installed automatically at the next start, or choose Restart to update now.";
+    }
+    public async Task<string> DownloadAsync(Action<int> progress, CancellationToken token = default)
+    {
+        await gate.WaitAsync(token);
+        try { return await DownloadCoreAsync(progress, token); }
+        finally { gate.Release(); }
+    }
+    public async Task<string> PrepareAutomaticUpdateAsync(string feed, Action<int> progress, CancellationToken token = default)
+    {
+        await gate.WaitAsync(token);
+        try
+        {
+            var status = await CheckCoreAsync(feed);
+            return available is null ? status : await DownloadCoreAsync(progress, token);
+        }
+        finally { gate.Release(); }
     }
     public void Apply()
     {
-        if (manager is null || available is null) throw new InvalidOperationException("Check for updates first.");
-        manager.ApplyUpdatesAndRestart(available);
+        // Never race an in-flight checksum/download with application shutdown.
+        if (!gate.Wait(0)) throw new InvalidOperationException("An update operation is in progress.");
+        try
+        {
+            var pending = manager?.UpdatePendingRestart ?? throw new InvalidOperationException("Download an update first.");
+            manager!.ApplyUpdatesAndRestart(pending);
+        }
+        finally { gate.Release(); }
     }
 }

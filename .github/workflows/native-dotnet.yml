@@ -1,15 +1,19 @@
 name: Native DinoSaurList
 on:
   push:
-    paths: ['dotnet/**', '.github/workflows/native-dotnet.yml', '.config/dotnet-tools.json', 'News/news.md', 'scripts/check-native-secrets.py', 'scripts/native-install-smoke.ps1', 'News/link.md']
-  pull_request:
-    paths: ['dotnet/**', '.github/workflows/native-dotnet.yml', 'scripts/check-native-secrets.py', 'scripts/native-install-smoke.ps1', 'News/link.md']
+    branches: [main, 'feat/avalonia-port']
+    tags: ['v*']
+    paths: ['dotnet/**', '.github/workflows/native-dotnet.yml', '.config/dotnet-tools.json', 'News/news.md', 'scripts/check-native-secrets.py', 'scripts/native-install-smoke.ps1', 'scripts/deploy-native-feed.sh', 'News/link.md']
   workflow_dispatch:
     inputs:
       version:
         description: 'Preview version for native packages'
         required: true
         default: '0.1.0-preview.1'
+      publish:
+        description: 'Publish this version to GitHub Releases and the NPI feed'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -17,8 +21,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
-    # This repository is public. Do not run public PR code on the private NPI server.
-    runs-on: ubuntu-latest
+    # Trusted pushes/manual runs only: never execute public PR code on private runners.
+    runs-on: self-hosted-rocky
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -42,16 +46,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - os: self-host-win11
             rid: win-x64
             exe: DinoSaurList.exe
-            channel: win-preview
-          - os: macos-latest
+            channel: win
+          - os: self-host-osx
             rid: osx-arm64
             exe: DinoSaurList
-            channel: osx-preview
+            channel: osx
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -61,14 +65,25 @@ jobs:
         shell: pwsh
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
           $version = $env:REQUESTED_VERSION
+          if ($env:RELEASE_TAG) { $version = $env:RELEASE_TAG -replace '^v', '' }
           if (-not $version) { $version = "0.1.0-preview.${{ github.run_number }}" }
           if ($version -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$') { throw 'Invalid version' }
           "NATIVE_VERSION=$version" >> $env:GITHUB_ENV
+          $channel = '${{ matrix.channel }}'
+          if ($version.Contains('-')) { $channel += '-preview' }
+          "NATIVE_CHANNEL=$channel" >> $env:GITHUB_ENV
       - name: Verify Core, CLI and UI on native OS
         working-directory: dotnet
         run: dotnet test --solution DinoSaurList.sln -c Release --no-progress
+      - name: Clear native build outputs from previous runner jobs
+        shell: pwsh
+        run: |
+          foreach ($path in @('publish', 'Releases', 'DinoSaurList.iconset')) {
+            if (Test-Path $path) { Remove-Item $path -Recurse -Force }
+          }
       - name: Publish native desktop
         working-directory: dotnet
         shell: pwsh
@@ -94,11 +109,11 @@ jobs:
       - name: Package Windows preview
         if: runner.os == 'Windows'
         shell: pwsh
-        run: dotnet vpk pack --packId DinoSaurListNative --packTitle DinoSaurList --packVersion $env:NATIVE_VERSION --packDir publish --mainExe DinoSaurList.exe --icon IcoFolder/main.ico --channel win-preview
+        run: dotnet vpk pack --packId DinoSaurListNative --packTitle DinoSaurList --packVersion $env:NATIVE_VERSION --packDir publish --mainExe DinoSaurList.exe --icon IcoFolder/main.ico --channel $env:NATIVE_CHANNEL
       - name: Package macOS preview
         if: runner.os == 'macOS'
         shell: bash
-        run: dotnet vpk pack --packId DinoSaurListNative --packTitle DinoSaurList --packVersion "$NATIVE_VERSION" --packDir publish --mainExe DinoSaurList --icon DinoSaurList.icns --channel osx-preview
+        run: dotnet vpk pack --packId DinoSaurListNative --packTitle DinoSaurList --packVersion "$NATIVE_VERSION" --packDir publish --mainExe DinoSaurList --icon DinoSaurList.icns --channel "$NATIVE_CHANNEL"
       - name: Install preview and exercise native UI and CLI
         shell: pwsh
         run: ./scripts/native-install-smoke.ps1 -OperatingSystem '${{ runner.os }}'
@@ -128,3 +143,59 @@ jobs:
           path: Releases/*
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    runs-on: self-hosted-rocky
+    permissions:
+      contents: write
+    concurrency:
+      group: dinosaurlist-release-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: DinoSaurList-*-preview
+          path: native-release-assets
+          merge-multiple: true
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_TAG"
+          if [ -z "$tag" ]; then tag="v$REQUESTED_VERSION"; fi
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]] || { echo 'Invalid release version'; exit 1; }
+          # A draft stays invisible to updaters until both OS packages have been uploaded.
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'This release already exists; use a new version to keep published packages immutable.'
+            exit 1
+          fi
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "DinoSaurList $tag" --generate-notes native-release-assets/*
+          flags=()
+          if [[ "$tag" == *-* ]]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false "${flags[@]}"
+
+  deploy-npi:
+    needs: release
+    runs-on: self-hosted-rocky
+    concurrency:
+      group: dinosaurlist-npi-feed
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: DinoSaurList-*-preview
+          path: native-release-assets
+          merge-multiple: true
+      - name: Deploy NPI release feed
+        shell: bash
+        run: |
+          ./scripts/deploy-native-feed.sh native-release-assets /var/www/dinosaurlist
+          curl --fail --silent --show-error https://npi-service.kor.broadcom.net/dinosaurlist/list.json >/dev/null

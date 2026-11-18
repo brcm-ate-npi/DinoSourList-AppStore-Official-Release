@@ -352,6 +352,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         News = await state.NewsAsync(UserStateService.BundledNews, token);
         await RebuildAsync(token); Status = "Legacy installations and user data imported; original files preserved.";
     });
+    private readonly CancellationTokenSource updateCancellation = new();
+    public async Task PrepareAutomaticUpdateAsync()
+    {
+        try
+        {
+            var saved = await state.SettingsAsync(updateCancellation.Token);
+            UpdateStatus = await updater.PrepareAutomaticUpdateAsync(saved.UpdateFeedUrl,
+                p => Dispatcher.UIThread.Post(() => UpdateStatus = $"Downloading application update: {p}%"), updateCancellation.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { UpdateStatus = "Automatic update unavailable: " + error.Message; Log(UpdateStatus); }
+    }
     [RelayCommand] private async Task CheckUpdatesAsync() => await GuardAsync(async _ => UpdateStatus = await updater.CheckAsync(UpdateFeedUrl));
     [RelayCommand] private async Task DownloadUpdateAsync() => await GuardAsync(async _ => UpdateStatus = await updater.DownloadAsync(p => Progress = p));
     [RelayCommand] private void ApplyUpdate() { try { updater.Apply(); } catch (Exception e) { Log(e.Message); UpdateStatus = e.Message; } }
@@ -371,5 +383,5 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         catch (Exception e) when (e is not OutOfMemoryException) { Status = e.Message; Log(e.GetType().Name + ": " + e.Message); }
         finally { Busy = false; }
     }
-    public void Dispose() { ProfilePhoto?.Dispose(); operation.Cancel(); operation.Dispose(); http.Dispose(); }
+    public void Dispose() { updateCancellation.Cancel(); ProfilePhoto?.Dispose(); operation.Cancel(); operation.Dispose(); http.Dispose(); }
 }

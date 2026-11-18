@@ -17,6 +17,7 @@ public sealed partial class App : Application
             desktop.MainWindow = window;
             window.Opened += async (_, _) =>
             {
+                if (NativeSmoke.OutputPrefix is null) _ = vm.PrepareAutomaticUpdateAsync();
                 await vm.InitializeAsync();
                 if (NativeSmoke.OutputPrefix is not null)
                 {
