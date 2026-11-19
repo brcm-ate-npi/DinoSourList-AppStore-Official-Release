@@ -6,6 +6,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DinoSaurList.Core.Box;
+using DinoSaurList.Core.Install;
 using DinoSaurList.Core.Profile;
 using DinoSaurList.Core.Registry;
 using DinoSaurList.Core.Updates;
@@ -95,7 +96,7 @@ public sealed class FollowUpTests
             await File.WriteAllTextAsync(Path.Combine(folder, execution), "preserve local file", TestContext.Current.CancellationToken);
             await store.AddAsync(new("1", "Tool-Author", "Tool", "Author", version, folder, execution, DateTimeOffset.UtcNow, Flow: flow), TestContext.Current.CancellationToken);
         }
-        using var vm = new MainViewModel(temp.Root, false, box); await vm.InitializeAsync();
+        using var vm = new MainViewModel(temp.Root, false, box, installIntegration: new IsolatedInstallIntegration()); await vm.InitializeAsync();
         vm.DownloadFolderRequested = folder => Assert.True(Directory.Exists(folder));
         var card = Assert.Single(vm.Tools); Assert.Equal("Latest", card.PrimaryAction);
         card.SelectedCardPackage = card.Packages.Single(p => p.Version == "1.0"); await card.PrimaryCommand.ExecuteAsync(null);
@@ -107,13 +108,22 @@ public sealed class FollowUpTests
         Assert.Equal("newest", box.LastDownload); Assert.Equal(3, (await store.LoadAsync(TestContext.Current.CancellationToken)).Count);
         Assert.Equal("Latest", Assert.Single(vm.Tools).PrimaryAction);
     }
+    // This regression covers archive/version state. Real Windows shortcuts and tool
+    // execution are verified separately by the packaged native integration gate.
+    private sealed class IsolatedInstallIntegration : IInstallIntegration
+    {
+        public Task BeforeInstallAsync(ToolEntry tool, InstalledTool? previous, CancellationToken token) => Task.CompletedTask;
+        public Task AfterInstallAsync(ToolEntry tool, string directory, string execution, CancellationToken token) => Task.CompletedTask;
+        public Task BeforeRemoveAsync(InstalledTool tool, CancellationToken token) => Task.CompletedTask;
+    }
     private sealed class ProfileBox : IBoxClient
     {
         public int Reads { get; private set; }
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task<List<BoxItem>> ListAsync(string id, CancellationToken token = default) => Task.FromResult(id == CatalogueService.RootFolder
             ? new List<BoxItem> { new("profiles", ".devprofile-data", "folder") } : new List<BoxItem> { new("profile", "NPI_DEV.json", "file") });
-        public async Task<string> ReadTextAsync(string id, CancellationToken token = default) { Reads++; await Release.Task.WaitAsync(token); return "{\"tweet\":\"fresh shared message\"}"; }
+        public async Task<string> ReadTextAsync(string id, CancellationToken token = default) { Reads++; Started.TrySetResult(); await Release.Task.WaitAsync(token); return "{\"tweet\":\"fresh shared message\"}"; }
         public Task DownloadAsync(BoxItem file, string target, IProgress<DownloadProgress>? progress, CancellationToken token) => throw new NotSupportedException();
         public Task UploadAsync(string folder, string name, byte[] bytes, CancellationToken token) => throw new InvalidOperationException("Preload must never write to Box.");
     }
@@ -125,7 +135,11 @@ public sealed class FollowUpTests
         await storage.WriteAsync("profile-NPI_DEV.json", new DeveloperProfile("NPI DEV", "cached message", "", []), TestContext.Current.CancellationToken);
         using var vm = new MainViewModel(temp.Root, true, box);
         await vm.InitializeAsync(); var preload = vm.PreloadDeveloperProfilesAsync();
+        await box.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        var cachedShown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        vm.PropertyChanged += (_, change) => { if (change.PropertyName == nameof(vm.ProfileMessage) && vm.ProfileMessage == "cached message") cachedShown.TrySetResult(); };
         vm.NavigateCommand.Execute("Developers"); Dispatcher.UIThread.RunJobs();
+        await cachedShown.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         Assert.False(vm.Busy); Assert.Equal("cached message", vm.ProfileMessage); Assert.Equal(1, box.Reads);
         box.Release.SetResult(); await preload; await vm.LoadSharedProfileCommand.ExecuteAsync(null);
         // Explicit refresh is allowed; plain navigation after warmup must reuse it.

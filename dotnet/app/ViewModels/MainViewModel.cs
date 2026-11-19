@@ -33,6 +33,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private HttpClient http = new() { Timeout = TimeSpan.FromMinutes(30) };
     private IBoxClient box = null!;
     private readonly IBoxClient? suppliedBox;
+    private readonly IInstallIntegration? installIntegration;
     private CatalogueService catalogue = null!;
     private DocumentationService documents = null!;
     private DeveloperProfiles profiles = null!;
@@ -174,9 +175,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         && (string.IsNullOrWhiteSpace(Search) || (t.Name + " " + t.Author + " " + t.Category).Contains(Search, StringComparison.OrdinalIgnoreCase)));
     public string VisibleCount => $"{VisibleTools.Count()} of {Tools.Count} tools";
     private readonly bool autoLoadProfiles;
-    public MainViewModel(string? dataRoot = null, bool autoLoadProfiles = true, IBoxClient? boxClient = null, IApplicationUpdater? applicationUpdater = null)
+    public MainViewModel(string? dataRoot = null, bool autoLoadProfiles = true, IBoxClient? boxClient = null, IApplicationUpdater? applicationUpdater = null, IInstallIntegration? installIntegration = null)
     {
-        this.autoLoadProfiles = autoLoadProfiles; suppliedBox = boxClient; updater = applicationUpdater ?? new AppUpdateService(); chat = new(assistant); Storage = new(dataRoot); installations = new(Storage); state = new(Storage); installedTools = new(Storage, installations, launcher); activity = new(Storage); ConfigureClient();
+        this.installIntegration = installIntegration; this.autoLoadProfiles = autoLoadProfiles; suppliedBox = boxClient; updater = applicationUpdater ?? new AppUpdateService(); chat = new(assistant); Storage = new(dataRoot); installations = new(Storage); state = new(Storage); installedTools = new(Storage, installations, launcher); activity = new(Storage); ConfigureClient();
     }
     private void ConfigureClient()
     {
@@ -331,7 +332,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (DownloadFolderRequested is { } showFolder) showFolder(folder); else OpenUri(folder);
             return;
         }
-        var service = new InstallService(box, Storage, installations, launcher);
+        var service = new InstallService(box, Storage, installations, launcher, installIntegration);
         var record = await service.InstallAsync(selected.Tool, package, new Progress<DownloadProgress>(p => { Progress = p.Percent; Status = $"Downloading {p.Bytes / 1048576.0:F1} MiB ({p.Percent:F0}%)"; }), token);
         await activity.RecordAsync(record.ToolId, "install", token); await RebuildAsync(token); await LoadActivityAsync(token); Status = $"Installed {record.Name} {record.Version}.";
     });

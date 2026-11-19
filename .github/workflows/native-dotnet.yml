@@ -238,6 +238,7 @@ jobs:
           if ($version.Contains('-')) { $channel += '-preview' }
           "NATIVE_CHANNEL=$channel" >> $env:GITHUB_ENV
       - name: Verify Core, CLI and UI on native OS
+        timeout-minutes: 8
         working-directory: dotnet
         run: dotnet test --solution DinoSaurList.sln -c Release --no-progress
       - name: Clear native build outputs from previous runner jobs
