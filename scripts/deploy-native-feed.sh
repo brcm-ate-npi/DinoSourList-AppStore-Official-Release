@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run on the NPI self-hosted Linux runner after both native installers pass.
+# Run on the NPI self-hosted Linux runner after both OS packages have been built.
 set -euo pipefail
 source_dir="$(realpath "${1:?release asset directory required}")"
 target_dir="${2:-/var/www/dinosaurlist}"

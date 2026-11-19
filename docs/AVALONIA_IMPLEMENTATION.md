@@ -155,3 +155,9 @@ The current production workflow is: Linux release metadata -> Windows/macOS self
 ## 2026-11-19 compact assistant input
 
 The assistant captures plain Enter in the tunneling key route before TextBox multiline editing, executes the same Send command, and leaves Shift+Enter to the normal newline behavior. Plain Enter is consumed while busy as well, preventing accidental newline insertion during a pending reply. The footer uses a fixed 68-pixel input with compact Send/Close controls and a 28-pixel Reload README row. Recommendations move into the scrollable conversation instead of reserving a separate bottom region. The default assistant window is 840×660 and remains constrained by the monitor work area. This change is checked by compilation/code review only, in accordance with the current build-only policy.
+
+## Version 1.0 stable releases
+
+The stable application version is 1.0.0. A version tag such as `v1.0.0` creates the GitHub Release and NPI distribution through the existing headless pipeline. Stable builds use their `win`/`osx` package channel and exclude prerelease GitHub releases from update discovery. New versions are tracked by the release/package version, never the main branch commit date.
+
+Stable release assets also include identical `win-preview`/`osx-preview` compatibility manifests pointing to the stable packages. Existing 0.1 preview clients can therefore discover 1.0.0 through either NPI or GitHub; after applying it they have the stable package/channel. No duplicate application build is used for this transition. Deployment validates that canonical/compatibility feeds agree and still verifies package sizes/SHA-256 before replacing live feeds. Existing preview tag references are removed per the owner's request. Manual tests and UI/update execution remain excluded from CI.

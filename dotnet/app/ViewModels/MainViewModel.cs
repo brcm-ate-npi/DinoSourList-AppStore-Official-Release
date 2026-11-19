@@ -61,6 +61,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<ChatMessage> AssistantMessages { get; } = [new("Assistant", "Welcome to Dinosaur List. Describe your task or ask me to list all tools.")];
     public string WindowTitle => "DinoSaurList — " + AppVersion;
     public string AppVersion => AppUpdateService.Version;
+    public string AppReleaseChannel => AppVersion.Contains('-') ? "Preview" : "Stable";
+    public string AppReleaseUrl => AppUpdateService.GithubRepository + "/releases/tag/v" + AppVersion;
+    [RelayCommand] private void OpenApplicationRelease() => OpenUri(AppReleaseUrl);
     public string DataDirectory => Storage.Root;
     public string RuntimePlatform => ToolLauncher.Platform;
     [ObservableProperty] private string page = "Installed";
@@ -527,7 +530,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         finally
         {
             UpdateBusy = false;
-            try { await Storage.WriteAsync("update-status.json", new { checkedAt = DateTimeOffset.UtcNow, version = AppVersion, status = UpdateStatus, restartReady = RestartReady }); }
+            try { await Storage.WriteAsync("update-status.json", new { checkedAt = DateTimeOffset.UtcNow, version = AppVersion, release = AppReleaseUrl, channel = AppReleaseChannel, status = UpdateStatus, restartReady = RestartReady }); }
             catch (IOException error) { Log("Could not save update status: " + error.Message); }
         }
     }

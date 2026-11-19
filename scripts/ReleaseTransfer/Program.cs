@@ -18,6 +18,24 @@ var release = await Release();
 if (release["draft"]?.GetValue<bool>() != true || release["target_commitish"]?.GetValue<string>() != sha)
     throw new InvalidOperationException("Only a draft for this exact commit can receive assets.");
 var id = release["id"]!.GetValue<long>();
+// Stable packages also publish compatibility manifests for already-installed
+// preview clients. The referenced package remains the single stable build.
+if (!tag.Contains('-'))
+{
+    foreach (var platform in new[] { "win", "osx" })
+    {
+        foreach (var (source, destination) in new[]
+        {
+            ($"releases.{platform}.json", $"releases.{platform}-preview.json"),
+            ($"assets.{platform}.json", $"assets.{platform}-preview.json"),
+            ($"RELEASES-{platform}", $"RELEASES-{platform}-preview")
+        })
+        {
+            var original = Path.Combine("Releases", source);
+            if (File.Exists(original)) File.Copy(original, Path.Combine("Releases", destination), true);
+        }
+    }
+}
 var files = Directory.GetFiles("Releases").Where(f => !Path.GetFileName(f).StartsWith('.')).ToList();
 if (!files.Any(f => f.EndsWith("-full.nupkg", StringComparison.Ordinal))) throw new InvalidDataException("Native package missing");
 foreach (var file in files)

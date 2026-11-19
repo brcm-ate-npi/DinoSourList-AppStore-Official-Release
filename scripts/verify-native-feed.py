@@ -12,8 +12,13 @@ def verify(source, expected_version=""):
     versions = set()
     for platform in ("win", "osx"):
         feeds = [p for p in (source / ("releases." + platform + ".json"), source / ("releases." + platform + "-preview.json")) if p.is_file()]
-        if len(feeds) != 1:
-            raise ValueError("Exactly one " + platform + " feed is required")
+        if not feeds:
+            raise ValueError("A " + platform + " feed is required")
+        if len(feeds) == 2:
+            # Stable releases expose the identical manifest on the old preview
+            # channel so existing installations can migrate without reinstalling.
+            if json.loads(feeds[0].read_text()) != json.loads(feeds[1].read_text()):
+                raise ValueError("Stable and preview compatibility feeds must match")
         with feeds[0].open() as stream:
             assets = json.load(stream)["Assets"]
         full = [a for a in assets if a.get("Type") == "Full"]

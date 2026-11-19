@@ -7,7 +7,7 @@ on:
       version:
         description: 'Preview version for native packages'
         required: true
-        default: '0.1.0-preview.1'
+        default: '1.0.0'
       publish:
         description: 'Publish this version to GitHub Releases and the NPI feed'
         type: boolean
@@ -172,11 +172,11 @@ jobs:
           exit 0
       - name: Restore pinned Velopack packaging tool
         run: dotnet tool restore
-      - name: Package Windows preview
+      - name: Package Windows release
         if: runner.os == 'Windows'
         shell: pwsh
         run: dotnet vpk --yes --skip-updates pack --skipVeloAppCheck --packId DinoSaurListNative --packTitle DinoSaurList --packVersion $env:NATIVE_VERSION --packDir publish --mainExe DinoSaurList.exe --icon IcoFolder/main.ico --channel $env:NATIVE_CHANNEL
-      - name: Build and package macOS preview without PowerShell
+      - name: Build and package macOS release without PowerShell
         if: runner.os == 'macOS'
         shell: bash
         env:
@@ -201,7 +201,7 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         if: github.ref_type != 'tag' && !(github.event_name == 'workflow_dispatch' && inputs.publish)
         with:
-          name: DinoSaurList-${{ matrix.rid }}-preview
+          name: DinoSaurList-${{ matrix.rid }}
           path: Releases/*
           if-no-files-found: error
 
@@ -245,12 +245,15 @@ jobs:
           if [ -z "$tag" ]; then tag="v$REQUESTED_VERSION"; fi
           [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]] || { echo 'Invalid release version'; exit 1; }
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish,assets > "$RUNNER_TEMP/release-stage.json"
-          python3 - "$RUNNER_TEMP/release-stage.json" "$GITHUB_SHA" <<'PYCODE'
+          python3 - "$RUNNER_TEMP/release-stage.json" "$GITHUB_SHA" "$tag" <<'PYCODE'
           import json,sys
           r=json.load(open(sys.argv[1])); assert r['isDraft'] and r['targetCommitish']==sys.argv[2]
           names=[a['name'] for a in r['assets']]
           assert sum(n.endswith('-full.nupkg') for n in names)==2, 'Both OS packages required'
-          assert sum(n.startswith('releases.') and n.endswith('.json') for n in names)==2, 'Both feeds required'
+          suffix = '-preview' if '-' in sys.argv[3] else ''
+          assert all('releases.'+p+suffix+'.json' in names for p in ('win','osx')), 'Both OS feeds required'
+          if not suffix:
+              assert all('releases.'+p+'-preview.json' in names for p in ('win','osx')), 'Preview migration feeds required'
           PYCODE
           flags=()
           if [[ "$tag" == *-* ]]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi

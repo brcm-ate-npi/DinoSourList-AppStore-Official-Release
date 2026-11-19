@@ -21,12 +21,12 @@ public sealed class AppUpdateService : IApplicationUpdater
     private UpdateInfo? available;
     public bool RestartReady => manager?.UpdatePendingRestart is not null;
     public string? AvailableVersion => available?.TargetFullRelease.Version.ToString();
-    public static string Version => typeof(AppUpdateService).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.1.0";
+    public static string Version => typeof(AppUpdateService).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "1.0.0";
     public static IUpdateSource Source(string feed)
     {
         if (!Uri.TryCreate(feed, UriKind.Absolute, out var uri) || uri.Scheme != "https" || !string.IsNullOrEmpty(uri.UserInfo)) throw new ArgumentException("Update feed must use HTTPS without credentials.");
         return feed.TrimEnd('/').Equals(GithubRepository, StringComparison.OrdinalIgnoreCase)
-            ? new GithubSource(GithubRepository, accessToken: null, prerelease: true)
+            ? new GithubSource(GithubRepository, accessToken: null, prerelease: Version.Contains('-'))
             : new SimpleWebSource(feed.TrimEnd('/'));
     }
     private async Task<string> CheckCoreAsync(string feed, CancellationToken token = default)
@@ -37,7 +37,7 @@ public sealed class AppUpdateService : IApplicationUpdater
         try { available = await manager.CheckForUpdatesAsync().WaitAsync(TimeSpan.FromSeconds(12), token); }
         catch when (!token.IsCancellationRequested && feed.TrimEnd('/').Equals(DefaultFeed.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
         {
-            // The public repository needs no PAT. Keep the installed channel: preview never leaks into stable.
+            // Public release assets need no PAT. Stable builds ignore prereleases and keep their packaged OS channel.
             manager = new UpdateManager(Source(GithubRepository));
             available = await manager.CheckForUpdatesAsync().WaitAsync(TimeSpan.FromSeconds(12), token);
         }
