@@ -22,7 +22,7 @@ app="$proof/install/DinoSaurList.app"
 manifest=$(find "$app/Contents" -name sq.version -print -quit)
 [ -f "$manifest" ] || { echo 'Published app manifest missing'; exit 1; }
 cp "$manifest" "$evidence/before.version.xml"
-grep -F "$old" "$manifest" >/dev/null
+grep -F "<version>$old</version>" "$manifest" >/dev/null
 if pgrep -x DinoSaurList >/dev/null; then echo 'An existing DinoSaurList is running; refusing to disturb its shared update cache.'; exit 1; fi
 # Cache is shared by bundle ID. Preserve it without deleting any pre-existing cache files.
 cache="$HOME/Library/Caches/velopack/DinoSaurListNative"
@@ -86,10 +86,10 @@ start_app download
 if [ "$automatic" = true ]; then
   # Do not stop/relaunch the baseline: it must apply the published target itself.
   for ((second=0;second<240;second++)); do
-    if [ -f "$manifest" ] && grep -F "$version" "$manifest" >/dev/null; then break; fi
+    if [ -f "$manifest" ] && grep -F "<version>$version</version>" "$manifest" >/dev/null; then break; fi
     sleep 1
   done
-  grep -F "$version" "$manifest" >/dev/null || { echo 'Startup did not automatically apply the newer release'; exit 1; }
+  grep -F "<version>$version</version>" "$manifest" >/dev/null || { echo 'Startup did not automatically apply the newer release'; exit 1; }
   curl --fail --location --silent --show-error --retry 3 --max-time 120 "${feed}${file}" -o "$proof/expected.nupkg"
   actual=$(shasum -a 256 "$proof/expected.nupkg" | awk '{print toupper($1)}')
   [ "$actual" = "$sha" ] || { echo 'Published target package hash mismatch'; exit 1; }
@@ -104,15 +104,15 @@ done
 actual=$(shasum -a 256 "$cache/packages/$file" | awk '{print toupper($1)}')
 [ "$actual" = "$sha" ] || { echo 'Automatically downloaded package hash mismatch'; exit 1; }
 # First start only downloads. It must not replace a running app.
-grep -F "$old" "$manifest" >/dev/null
+grep -F "<version>$old</version>" "$manifest" >/dev/null
 stop_app
 echo "Package checksum verified; testing next-start automatic apply"
 start_app apply
 for ((second=0;second<90;second++)); do
-  if [ -f "$manifest" ] && grep -F "$version" "$manifest" >/dev/null; then break; fi
+  if [ -f "$manifest" ] && grep -F "<version>$version</version>" "$manifest" >/dev/null; then break; fi
   sleep 1
 done
-grep -F "$version" "$manifest" >/dev/null || { echo 'Next-start automatic application failed'; exit 1; }
+grep -F "<version>$version</version>" "$manifest" >/dev/null || { echo 'Next-start automatic application failed'; exit 1; }
 fi
 cp "$manifest" "$evidence/after.version.xml"
 for ((second=0;second<60;second++)); do
