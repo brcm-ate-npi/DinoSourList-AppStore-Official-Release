@@ -6,6 +6,7 @@ evidence="$RUNNER_TEMP/native-update-evidence"
 mkdir -p "$proof" "$evidence"
 feed=https://npi-service.kor.broadcom.net/dinosaurlist/
 old="${NATIVE_UPDATE_FROM:-0.1.0-preview.20261118.13}"
+automatic="${NATIVE_EXPECT_STARTUP_APPLY:-false}"
 curl --fail --location --silent --show-error --retry 3 --max-time 60 "${feed}releases.osx-preview.json" -o "$evidence/feed.json"
 version=$(plutil -extract Assets.0.Version raw -o - "$evidence/feed.json")
 file=$(plutil -extract Assets.0.FileName raw -o - "$evidence/feed.json")
@@ -82,6 +83,19 @@ stop_app() {
 }
 echo "Starting published $old; expecting automatic download of $version"
 start_app download
+if [ "$automatic" = true ]; then
+  # Do not stop/relaunch the baseline: it must apply the published target itself.
+  for ((second=0;second<240;second++)); do
+    if [ -f "$manifest" ] && grep -F "$version" "$manifest" >/dev/null; then break; fi
+    sleep 1
+  done
+  grep -F "$version" "$manifest" >/dev/null || { echo 'Startup did not automatically apply the newer release'; exit 1; }
+  curl --fail --location --silent --show-error --retry 3 --max-time 120 "${feed}${file}" -o "$proof/expected.nupkg"
+  actual=$(shasum -a 256 "$proof/expected.nupkg" | awk '{print toupper($1)}')
+  [ "$actual" = "$sha" ] || { echo 'Published target package hash mismatch'; exit 1; }
+  unzip -p "$proof/expected.nupkg" lib/app/Contents/MacOS/DinoSaurList.dll > "$proof/expected.dll"
+
+else
 for ((second=0;second<180;second++)); do
   [ ! -f "$cache/packages/$file" ] || break
   sleep 1
@@ -99,12 +113,18 @@ for ((second=0;second<90;second++)); do
   sleep 1
 done
 grep -F "$version" "$manifest" >/dev/null || { echo 'Next-start automatic application failed'; exit 1; }
+fi
 cp "$manifest" "$evidence/after.version.xml"
 for ((second=0;second<60;second++)); do
   if ! pgrep -f "UpdateMac.*$proof/install/" >/dev/null; then break; fi
   sleep 1
 done
 if pgrep -f "UpdateMac.*$proof/install/" >/dev/null; then echo 'Updater is still applying the package'; exit 1; fi
+if [ "$automatic" = true ]; then
+  expected_dll=$(shasum -a 256 "$proof/expected.dll" | awk '{print $1}')
+  installed_dll=$(shasum -a 256 "$app/Contents/MacOS/DinoSaurList.dll" | awk '{print $1}')
+  [ "$expected_dll" = "$installed_dll" ] || { echo 'Automatically applied DLL differs from the published release'; exit 1; }
+fi
 stop_app
 start_app capture
 for ((second=0;second<60;second++)); do
@@ -115,6 +135,14 @@ done
 [ -s "$evidence/updated-ui.json" ] && [ -s "$evidence/updated-ui.png" ]
 grep -F "\"version\": \"$version\"" "$evidence/updated-ui.json" >/dev/null
 grep -F preserve-update-proof "$DINOSAURLIST_DATA_DIR/sentinel.txt" >/dev/null
+
+if [ "$automatic" = true ]; then
+  printf '{"from":"%s","to":"%s","automaticDownload":true,"appliedOnFirstStart":true,"userRestartRequired":false,"dataPreserved":true,"sha256":"%s"}\n' "$old" "$version" "$actual" > "$evidence/update-result.json"
+  cat "$evidence/update-result.json"
+  printf "::notice title=Published Mac immediate startup update verified::%s to %s; single launch, automatic apply, published DLL checksum and data preservation passed\n" "$old" "$version"
+else
 printf '{"from":"%s","to":"%s","automaticDownload":true,"nextStartupApplied":true,"dataPreserved":true,"sha256":"%s"}\n' "$old" "$version" "$actual" > "$evidence/update-result.json"
 cat "$evidence/update-result.json"
 printf "::notice title=Published Mac automatic update verified::%s to %s; automatic download, SHA256, next-start apply, updated UI and sentinel passed\n" "$old" "$version"
+
+fi
