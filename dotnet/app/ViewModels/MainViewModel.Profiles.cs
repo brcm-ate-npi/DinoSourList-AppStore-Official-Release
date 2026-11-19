@@ -11,6 +11,7 @@ public sealed partial class MainViewModel
     private readonly Dictionary<string, Task<ProfileSnapshot>> profileLoads = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim profileRequests = new(2, 2);
     private int profileEpoch;
+    public Task ProfileDisplayTask { get; private set; } = Task.CompletedTask;
     [ObservableProperty] private string profileStatus = "";
 
     // Only reads shared profiles. It never takes the global tool-operation Busy flag.

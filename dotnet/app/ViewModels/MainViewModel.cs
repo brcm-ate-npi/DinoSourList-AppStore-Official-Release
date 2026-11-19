@@ -273,7 +273,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (SelectedInstallation is null) SelectedInstallation = SelectedTool?.Installed;
         });
     }
-    [RelayCommand] private void Navigate(string value) { FavouritesOnly = false; Page = value; DetailsVisible = false; if (autoLoadProfiles && value == "Developers") _ = ShowProfileAsync(false); }
+    [RelayCommand] private void Navigate(string value) { FavouritesOnly = false; Page = value; DetailsVisible = false; if (autoLoadProfiles && value == "Developers") ProfileDisplayTask = ShowProfileAsync(false); }
     [RelayCommand] private void ShowFavourites() { FavouritesOnly = true; Page = "Store"; }
     [RelayCommand] private void UsefulLinks() => Page = "Links";
     [RelayCommand] private void PreviewNews() => DocumentRequested?.Invoke("News & updates", News);
@@ -404,7 +404,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         await profiles.SaveAsync(new(ProfileName, ProfileMessage, DateTimeOffset.UtcNow.ToString("O"), links), token);
         profileEpoch++; profileLoads.Clear(); Status = "Profile and links saved to Box.";
     });
-    partial void OnProfileNameChanged(string value) { BuildContributions(); if (autoLoadProfiles && IsProfile) _ = ShowProfileAsync(false); }
+    partial void OnProfileNameChanged(string value) { BuildContributions(); if (autoLoadProfiles && IsProfile) ProfileDisplayTask = ShowProfileAsync(false); }
     partial void OnContributionYearChanged(int value) => BuildContributions();
     private void BuildContributions()
     {

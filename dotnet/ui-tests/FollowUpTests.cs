@@ -141,9 +141,12 @@ public sealed class FollowUpTests
         vm.NavigateCommand.Execute("Developers"); Dispatcher.UIThread.RunJobs();
         await cachedShown.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         Assert.False(vm.Busy); Assert.Equal("cached message", vm.ProfileMessage); Assert.Equal(1, box.Reads);
-        box.Release.SetResult(); await preload; await vm.LoadSharedProfileCommand.ExecuteAsync(null);
+        box.Release.SetResult(); await preload; await vm.ProfileDisplayTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await vm.LoadSharedProfileCommand.ExecuteAsync(null);
         // Explicit refresh is allowed; plain navigation after warmup must reuse it.
-        var reads = box.Reads; vm.NavigateCommand.Execute("Store"); vm.NavigateCommand.Execute("Developers"); Dispatcher.UIThread.RunJobs();
+        var reads = box.Reads; vm.NavigateCommand.Execute("Store"); vm.NavigateCommand.Execute("Developers");
+        await vm.ProfileDisplayTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Dispatcher.UIThread.RunJobs();
         Assert.Equal(reads, box.Reads); Assert.Equal("fresh shared message", vm.ProfileMessage);
     }
 }
