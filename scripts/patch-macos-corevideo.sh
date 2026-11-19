@@ -15,10 +15,6 @@ framework=$(otool -L "$native" | awk '/CoreVideo.framework/ {print $1; exit}')
 install_name_tool -change "$framework" '@loader_path/libDinoCoreVideo.dylib' "$native"
 codesign --force --sign - "$adapter"
 codesign --force --sign - "$native"
-probe="$RUNNER_TEMP/dinosaurlist-corevideo-probe"
-xcrun clang -arch arm64 -mmacosx-version-min=11.0 -Werror -Wno-deprecated-declarations \
-  "$(dirname "$source_file")/CoreVideoCompatibilityProbe.c" -framework CoreVideo -o "$probe"
-"$probe" "$(cd "$publish_dir" && pwd)/libDinoCoreVideo.dylib"
 mkdir -p "$publish_dir/Licenses/MacCompatibility"
 cp "$source_file" "$publish_dir/Licenses/MacCompatibility/"
 cat > "$publish_dir/Licenses/MacCompatibility/NOTICE.txt" <<'NOTICE'

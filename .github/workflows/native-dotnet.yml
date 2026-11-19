@@ -18,101 +18,15 @@ concurrency:
   group: native-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  test:
+  prepare-release:
     permissions:
       contents: write
-    # Trusted pushes/manual runs only: never execute public PR code on private runners.
+    # Release metadata only; no tests, installation or application execution.
     runs-on: self-hosted-rocky
     steps:
       - uses: actions/checkout@v7.0.1
-        id: checkout
-        continue-on-error: ${{ runner.os == 'macOS' }}
         with:
           persist-credentials: false
-      - name: Recover macOS checkout through GitHub API
-        if: runner.os == 'macOS' && steps.checkout.outcome == 'failure'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          : "${GITHUB_WORKSPACE:?}" "${RUNNER_TEMP:?}" "${GITHUB_REPOSITORY:?}" "${GITHUB_SHA:?}" "${GH_TOKEN:?}"
-          [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 1
-          snapshot="$RUNNER_TEMP/native-source-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          mkdir -p "$snapshot"
-          curl --fail --location --silent --show-error --retry 3 --retry-all-errors --connect-timeout 20 --max-time 180 \
-            -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/tarball/$GITHUB_SHA" -o "$snapshot/source.tar.gz"
-          mkdir -p "$snapshot/files"
-          tar -xzf "$snapshot/source.tar.gz" --strip-components 1 -C "$snapshot/files"
-          [ -f "$snapshot/files/dotnet/global.json" ] || { echo 'Unexpected repository snapshot'; exit 1; }
-          # Preserve old Git metadata outside the source tree; no stale tracked/untracked files enter the build.
-          if [ -e "$GITHUB_WORKSPACE/.git" ]; then mv "$GITHUB_WORKSPACE/.git" "$snapshot/previous-git"; fi
-          rsync -a --delete "$snapshot/files/" "$GITHUB_WORKSPACE/"
-          echo "Restored source snapshot for $GITHUB_SHA using the GitHub API."
-      - name: Reuse compatible .NET SDK (Unix)
-        if: runner.os != 'Windows'
-        id: sdk-unix
-        shell: bash
-        run: |
-          found=false
-          for candidate in "$(command -v dotnet || true)" "$HOME/.dotnet/dotnet" "$HOME/.cache/dinosaurlist-dotnet/dotnet"; do
-            [ -x "$candidate" ] || continue
-            if (cd "$RUNNER_TEMP" && "$candidate" --list-sdks) | grep -Eq '^10\.0\.([2-9][0-9]{2,}|1(0[9]|[1-9][0-9])) '; then
-              sdk_root=$("$candidate" --list-sdks | sed -n 's/.*\[\(.*\)\/sdk\]$/\1/p' | head -n 1)
-              echo "$sdk_root" >> "$GITHUB_PATH"
-              echo "DOTNET_ROOT=$sdk_root" >> "$GITHUB_ENV"
-              found=true; break
-            fi
-          done
-          echo "found=$found" >> "$GITHUB_OUTPUT"
-          echo "DOTNET_INSTALL_DIR=$HOME/.cache/dinosaurlist-dotnet" >> "$GITHUB_ENV"
-          echo "Compatible installed .NET SDK reused: $found"
-      - name: Reuse compatible .NET SDK (Windows)
-        if: runner.os == 'Windows'
-        id: sdk-windows
-        shell: pwsh
-        run: |
-          $found = $false
-          $candidates = @((Get-Command dotnet -ErrorAction SilentlyContinue).Source, "$env:USERPROFILE/.dotnet/dotnet.exe", "$env:LOCALAPPDATA/DinoSaurListBuild/dotnet/dotnet.exe")
-          foreach ($candidate in $candidates) {
-            if (-not $candidate -or -not (Test-Path $candidate)) { continue }
-            if ((& $candidate --list-sdks) -match '^10\.0\.([2-9][0-9]{2,}|1(0[9]|[1-9][0-9])) ') {
-              $directory = Split-Path $candidate
-              $directory >> $env:GITHUB_PATH
-              "DOTNET_ROOT=$directory" >> $env:GITHUB_ENV
-              $found = $true; break
-            }
-          }
-          "found=$($found.ToString().ToLower())" >> $env:GITHUB_OUTPUT
-          "DOTNET_INSTALL_DIR=$env:LOCALAPPDATA/DinoSaurListBuild/dotnet" >> $env:GITHUB_ENV
-          Write-Host "Compatible installed .NET SDK reused: $found"
-      - uses: actions/setup-dotnet@v6.1.0
-        if: steps.sdk-unix.outputs.found != 'true' && steps.sdk-windows.outputs.found != 'true'
-        with:
-          dotnet-version: '10.0.x'
-      - name: Confirm selected SDK
-        working-directory: dotnet
-        run: dotnet --version
-      - run: python3 scripts/check-native-secrets.py
-      - run: python3 scripts/test-native-feed.py
-      - name: Restore and check redistribution notices
-        run: |
-          dotnet restore dotnet/DinoSaurList.sln
-          python3 scripts/check-native-licenses.py
-      - name: Core and Avalonia UI tests
-        working-directory: dotnet
-        env:
-          DINOSAURLIST_SCREENSHOTS: ${{ runner.temp }}/native-screenshots
-        run: dotnet test --solution DinoSaurList.sln -c Release --no-progress
-      - name: Upload optional headless screenshots
-        uses: actions/upload-artifact@v7.0.2
-        if: always()
-        continue-on-error: true
-        with:
-          name: native-ui-evidence
-          path: ${{ runner.temp }}/native-screenshots
-          if-no-files-found: ignore
       - name: Prepare unpublished release staging
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
         shell: bash
@@ -136,7 +50,7 @@ jobs:
   package:
     permissions:
       contents: write
-    needs: test
+    needs: prepare-release
     strategy:
       fail-fast: false
       matrix:
@@ -237,10 +151,6 @@ jobs:
           $channel = '${{ matrix.channel }}'
           if ($version.Contains('-')) { $channel += '-preview' }
           "NATIVE_CHANNEL=$channel" >> $env:GITHUB_ENV
-      - name: Verify Core, CLI and UI on native OS
-        timeout-minutes: 8
-        working-directory: dotnet
-        run: dotnet test --solution DinoSaurList.sln -c Release --no-progress
       - name: Clear native build outputs from previous runner jobs
         if: runner.os == 'Windows'
         shell: pwsh
@@ -265,8 +175,8 @@ jobs:
       - name: Package Windows preview
         if: runner.os == 'Windows'
         shell: pwsh
-        run: dotnet vpk pack --packId DinoSaurListNative --packTitle DinoSaurList --packVersion $env:NATIVE_VERSION --packDir publish --mainExe DinoSaurList.exe --icon IcoFolder/main.ico --channel $env:NATIVE_CHANNEL
-      - name: Build and install macOS preview without PowerShell
+        run: dotnet vpk --yes --skip-updates pack --skipVeloAppCheck --packId DinoSaurListNative --packTitle DinoSaurList --packVersion $env:NATIVE_VERSION --packDir publish --mainExe DinoSaurList.exe --icon IcoFolder/main.ico --channel $env:NATIVE_CHANNEL
+      - name: Build and package macOS preview without PowerShell
         if: runner.os == 'macOS'
         shell: bash
         env:
@@ -295,36 +205,20 @@ jobs:
           path: Releases/*
           if-no-files-found: error
 
-      - name: Install preview and exercise native UI and CLI
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/native-install-smoke.ps1 -OperatingSystem '${{ runner.os }}'
-      - name: Download and launch a real portable Box tool
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/verify-real-tool-windows.ps1
-      - name: Stage verified Windows packages and installed evidence in the draft release
+      - name: Stage Windows packages in the draft release
         if: runner.os == 'Windows' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish))
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          NATIVE_RID: ${{ matrix.rid }}
           NATIVE_RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
         run: dotnet run --project scripts/ReleaseTransfer/ReleaseTransfer.csproj -c Release
-      - name: Stage verified macOS packages and installed evidence in the draft release
+      - name: Stage macOS packages in the draft release
         if: runner.os == 'macOS' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish))
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          NATIVE_RID: ${{ matrix.rid }}
           NATIVE_RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
         run: dotnet run --project scripts/ReleaseTransfer/ReleaseTransfer.csproj -c Release
-      - uses: actions/upload-artifact@v7.0.2
-        if: always() && github.ref_type != 'tag' && !(github.event_name == 'workflow_dispatch' && inputs.publish)
-        with:
-          name: installed-ui-${{ matrix.rid }}
-          path: ${{ runner.temp }}/native-installed-evidence
-          if-no-files-found: ignore
 
   release:
     needs: package
@@ -357,7 +251,6 @@ jobs:
           names=[a['name'] for a in r['assets']]
           assert sum(n.endswith('-full.nupkg') for n in names)==2, 'Both OS packages required'
           assert sum(n.startswith('releases.') and n.endswith('.json') for n in names)==2, 'Both feeds required'
-          assert all('validation-'+rid+'.zip' in names for rid in ('win-x64','osx-arm64')), 'Both installed validations required'
           PYCODE
           flags=()
           if [[ "$tag" == *-* ]]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi

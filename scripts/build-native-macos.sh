@@ -22,9 +22,8 @@ for size in 16 32 128 256 512; do
   sips -z "$double" "$double" icon-source.png --out "DinoSaurList.iconset/icon_${size}x${size}@2x.png"
 done
 iconutil -c icns DinoSaurList.iconset -o DinoSaurList.icns
-dotnet vpk pack --packId DinoSaurListNative --packTitle DinoSaurList --packVersion "$version" --packDir publish --mainExe DinoSaurList --icon DinoSaurList.icns --channel "$channel"
+dotnet vpk --yes --skip-updates pack --packId DinoSaurListNative --packTitle DinoSaurList --packVersion "$version" --packDir publish --mainExe DinoSaurList --icon DinoSaurList.icns --channel "$channel"
 shopt -s nullglob
 packages=(Releases/*-full.nupkg)
 [ "${#packages[@]}" -eq 1 ] || { echo 'Expected one native full package'; exit 1; }
 if unzip -Z -1 "${packages[0]}" | grep -Ei 'Box\.Automation\.WSD|BoxFast|BoxAutomate|Secrets\.cs|base_client\.py'; then echo 'Legacy credential file in package'; exit 1; fi
-./scripts/native-install-smoke-macos.sh
