@@ -1,0 +1,180 @@
+using System.IO.Compression;
+using DinoSaurList.Core.Box;
+using DinoSaurList.Core.Install;
+using DinoSaurList.Core.Launch;
+using DinoSaurList.Core.Registry;
+using Xunit;
+
+namespace DinoSaurList.Tests;
+
+public sealed class InstallTests
+{
+    public static bool IsWindows => OperatingSystem.IsWindows();
+    [Fact(SkipWhen = nameof(IsWindows), Skip = "Unix symbolic-link contract; Windows may require privileged symlink creation.")]
+    public void LinkedRootAndLinkedRemovalTargetCannotEscapeOwnedTree()
+    {
+        using var temp = new Temp();
+        var outside = Path.Combine(temp.Path, "outside"); Directory.CreateDirectory(outside);
+        var linked = Path.Combine(temp.Path, "linked"); Directory.CreateSymbolicLink(linked, outside);
+        Assert.Throws<InvalidDataException>(() => SafePaths.Within(linked, "file.txt"));
+        Assert.Throws<InvalidDataException>(() => SafePaths.Within(temp.Path, "linked"));
+    }
+    private static string Zip(string root, string name)
+    {
+        var path = Path.Combine(root, Guid.NewGuid().ToString("N") + ".zip");
+        using var zip = ZipFile.Open(path, ZipArchiveMode.Create); var entry = zip.CreateEntry(name);
+        using var writer = new StreamWriter(entry.Open()); writer.Write("example"); return path;
+    }
+    [Theory]
+    [InlineData("../outside.txt")]
+    [InlineData("/outside.txt")]
+    [InlineData("C:\\outside.txt")]
+    [InlineData("a/../../outside.txt")]
+    public async Task ArchiveTraversalCannotWriteOutsideStaging(string name)
+    {
+        using var temp = new Temp(); var zip = Zip(temp.Path, name);
+        await Assert.ThrowsAsync<InvalidDataException>(() => InstallService.ExtractAsync(zip, Path.Combine(temp.Path, "stage"), TestContext.Current.CancellationToken));
+        Assert.False(File.Exists(Path.Combine(temp.Path, "outside.txt")));
+    }
+    [Fact]
+    public async Task ArchiveSymbolicLinksAreRejected()
+    {
+        using var temp = new Temp(); var zip = Path.Combine(temp.Path, "link.zip");
+        using (var archive = ZipFile.Open(zip, ZipArchiveMode.Create)) { var entry = archive.CreateEntry("link"); entry.ExternalAttributes = unchecked((int)(0xa1ffu << 16)); }
+        await Assert.ThrowsAsync<InvalidDataException>(() => InstallService.ExtractAsync(zip, Path.Combine(temp.Path, "stage"), TestContext.Current.CancellationToken));
+    }
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task WrappedAndFlatPackagesProduceTheSameExecutableLayout(bool wrapped)
+    {
+        using var temp = new Temp(); var path = Path.Combine(temp.Path, "tool.zip");
+        using (var zip = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            if (wrapped) zip.CreateEntry("v1.0.0.0/");
+            foreach (var name in new[] { "run.cmd", "install.cmd", "src/main.py" })
+            { using var writer = new StreamWriter(zip.CreateEntry((wrapped ? "v1.0.0.0/" : "") + name).Open()); writer.Write("fixture"); }
+        }
+        var destination = Path.Combine(temp.Path, "installed");
+        await InstallService.ExtractAsync(path, destination, TestContext.Current.CancellationToken);
+        Assert.True(File.Exists(Path.Combine(destination, "src", "main.py")));
+        Assert.Equal("run.cmd", InstallService.ResolveExecution(destination, "run.cmd"));
+        Assert.False(Directory.Exists(Path.Combine(destination, "v1.0.0.0")));
+    }
+    [Fact]
+    public async Task SeveralTopLevelDirectoriesRemainIntact()
+    {
+        using var temp = new Temp(); var path = Path.Combine(temp.Path, "tool.zip");
+        using (var zip = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            foreach (var name in new[] { "app/run.sh", "assets/icon.txt" })
+            { using var writer = new StreamWriter(zip.CreateEntry(name).Open()); writer.Write("fixture"); }
+        }
+        var destination = Path.Combine(temp.Path, "installed");
+        await InstallService.ExtractAsync(path, destination, TestContext.Current.CancellationToken);
+        Assert.Equal("app/run.sh", InstallService.ResolveExecution(destination, "app/run.sh"));
+        Assert.True(File.Exists(Path.Combine(destination, "assets", "icon.txt")));
+    }
+    [Fact]
+    public async Task PreviouslyDownloadedWrapperCanLaunchWithoutReinstalling()
+    {
+        using var temp = new Temp(); var storage = new AppStorage(temp.Path); var store = new InstallationStore(storage);
+        var directory = Path.Combine(temp.Path, "old"); Directory.CreateDirectory(Path.Combine(directory, "v1.0.0.0"));
+        File.WriteAllText(Path.Combine(directory, "v1.0.0.0", "run.sh"), "fixture");
+        var record = new InstalledTool("1", "Tool-Author", "Tool", "Author", "1.0.0.0", directory, "", DateTimeOffset.UtcNow, Flow: FlowDocument.Parse("[Execution]\nfile=run.sh"));
+        await store.AddAsync(record, TestContext.Current.CancellationToken);
+        var launcher = new Launcher(); await new InstalledToolService(storage, store, launcher).LaunchAsync(record, TestContext.Current.CancellationToken);
+        Assert.Equal(Path.Combine(directory, "v1.0.0.0"), launcher.Root);
+        Assert.True(File.Exists(Path.Combine(directory, "v1.0.0.0", "run.sh")));
+    }
+    private sealed class Box(string source) : IBoxClient
+    {
+        public Task<List<BoxItem>> ListAsync(string folderId, CancellationToken token = default) => throw new NotImplementedException();
+        public Task<string> ReadTextAsync(string fileId, CancellationToken token = default) => throw new NotImplementedException();
+        public Task DownloadAsync(BoxItem file, string destination, IProgress<DownloadProgress>? progress, CancellationToken token) { File.Copy(source, destination); return Task.CompletedTask; }
+    }
+    private sealed class Launcher : IToolLauncher
+    {
+        public bool Fail { get; set; }
+        public string? Root { get; private set; }
+        public Task RunAsync(string root, string relative, bool wait, CancellationToken token) { Root = root; return Fail ? Task.FromException(new IOException("installer failed")) : Task.CompletedTask; }
+    }
+    private sealed class GeneratingLauncher : IToolLauncher
+    {
+        public Task RunAsync(string root, string relative, bool wait, CancellationToken token)
+        { File.WriteAllText(Path.Combine(root, "created.sh"), "created by installer"); return Task.CompletedTask; }
+    }
+    [Fact]
+    public async Task ExecutionTargetIsResolvedAfterAutomaticInstallerCreatesIt()
+    {
+        using var temp = new Temp(); var storage = new AppStorage(Path.Combine(temp.Path, "data")); var store = new InstallationStore(storage);
+        var zip = Zip(temp.Path, "v1.0.0.0/install.sh");
+        var flow = FlowDocument.Parse("[Platform]\nsupported=any\n[Execution]\nfile=created.sh\n[Installation]\nauto=true\nfile=install.sh");
+        var package = new ToolPackage("2", "v1.0.0.0-any.zip", "1.0.0.0", null, new string('a', 40), "any");
+        var tool = new ToolEntry("1", "Tool-Author", "Tool", "Author", "MISC", [package], flow, []);
+        var record = await new InstallService(new Box(zip), storage, store, new GeneratingLauncher()).InstallAsync(tool, package, null, TestContext.Current.CancellationToken);
+        Assert.Equal("created.sh", record.ExecutionFile);
+        Assert.True(File.Exists(Path.Combine(record.Directory, record.ExecutionFile)));
+        Assert.Equal(record.ExecutionFile, Assert.Single(await store.LoadAsync(TestContext.Current.CancellationToken)).ExecutionFile);
+    }
+    [Fact]
+    public async Task FailedInstallerPreservesOldStateAndDoesNotStrandTheLock()
+    {
+        using var temp = new Temp(); var storage = new AppStorage(Path.Combine(temp.Path, "user")); var store = new InstallationStore(storage);
+        var zip = Zip(temp.Path, "run.sh"); var launcher = new Launcher { Fail = true };
+        var flow = FlowDocument.Parse("[Platform]\nsupported=any\n[Execution]\nfile=run.sh\n[Installation]\nauto=true\nfile=run.sh");
+        var package = new ToolPackage("2", "v1.0.0.0-any.zip", "1.0.0.0", null, new string('a', 40), "any");
+        var tool = new ToolEntry("1", "Test-Author", "Test", "Author", "MISC", [package], flow, []);
+        var service = new InstallService(new Box(zip), storage, store, launcher);
+        await Assert.ThrowsAsync<IOException>(() => service.InstallAsync(tool, package, null, TestContext.Current.CancellationToken)); Assert.Empty(await store.LoadAsync(TestContext.Current.CancellationToken));
+        Assert.Empty(Directory.EnumerateDirectories(Path.Combine(storage.Packages, "1"), ".stage-*"));
+        launcher.Fail = false; var record = await service.InstallAsync(tool, package, null, TestContext.Current.CancellationToken);
+        Assert.Equal(record.Directory, launcher.Root); Assert.True(File.Exists(Path.Combine(record.Directory, "run.sh"))); Assert.Single(await store.LoadAsync(TestContext.Current.CancellationToken));
+    }
+    [Fact]
+    public void LauncherUsesArgumentsWithoutShellConcatenationAndRejectsWindowsTargetsOnMac()
+    {
+        using var temp = new Temp(); File.WriteAllText(Path.Combine(temp.Path, "a ; literal.sh"), "");
+        var info = ToolLauncher.StartInfo(temp.Path, "a ; literal.sh", "macos", false);
+        Assert.Equal("/bin/bash", info.FileName); Assert.Equal(Path.Combine(temp.Path, "a ; literal.sh"), Assert.Single(info.ArgumentList)); Assert.False(info.UseShellExecute);
+        File.WriteAllText(Path.Combine(temp.Path, "tool.exe"), "");
+        Assert.Throws<PlatformNotSupportedException>(() => ToolLauncher.StartInfo(temp.Path, "tool.exe", "macos", false));
+        Assert.Throws<InvalidDataException>(() => ToolLauncher.StartInfo(temp.Path, "../tool.exe", "windows", false));
+    }
+    [Fact]
+    public async Task LegacyImportLinksExistingToolsWithoutMovingOrChangingThem()
+    {
+        using var temp = new Temp(); var root = Path.Combine(temp.Path, "legacy"); var folder = Path.Combine(root, "Software_Downloaded", "Tool_V-1.2.3.4_A-Author");
+        Directory.CreateDirectory(folder); File.WriteAllText(Path.Combine(folder, "run.cmd"), "old application"); Directory.CreateDirectory(Path.Combine(root, "config-record"));
+        File.WriteAllText(Path.Combine(root, "config-record", "favourites.json"), "{\"favourites\":[\"Tool-Author\"]}");
+        var flow = FlowDocument.Parse("[Execution]\nfile=run.cmd");
+        var tool = new ToolEntry("1", "Tool-Author", "Tool", "Author", "MISC", [], flow, []);
+        var preview = await LegacyImporter.PreviewAsync(root, [tool], TestContext.Current.CancellationToken); Assert.Single(preview.Installed);
+        var storage = new AppStorage(Path.Combine(temp.Path, "new")); var store = new InstallationStore(storage);
+        var importer = new LegacyImporter(storage, store); await importer.ImportAsync(preview, TestContext.Current.CancellationToken); await importer.ImportAsync(preview, TestContext.Current.CancellationToken);
+        var imported = Assert.Single(await store.LoadAsync(TestContext.Current.CancellationToken)); Assert.True(imported.Imported); Assert.Equal(folder, imported.Directory);
+        Assert.Equal("old application", File.ReadAllText(Path.Combine(folder, "run.cmd")));
+        Assert.Contains("Tool-Author", (await storage.ReadAsync<HashSet<string>>("favourites.json", TestContext.Current.CancellationToken))!);
+    }
+    [Fact]
+    public async Task LegacyUserDataImportPreservesOriginalsAndExcludesCredentials()
+    {
+        using var temp = new Temp(); var root = Path.Combine(temp.Path, "legacy"); var config = Path.Combine(root, "config-record"); Directory.CreateDirectory(config);
+        File.WriteAllText(Path.Combine(config, "news-edited.html"), "<h1>News</h1><script>bad()</script><p>Hello &amp; team</p>");
+        File.WriteAllText(Path.Combine(config, "dev_profile.json"), "{\"Author\":{\"tweet\":\"Draft\",\"updated\":\"today\",\"pending\":true}}");
+        File.WriteAllText(Path.Combine(config, "refresh_setting.json"), "{\"mode\":4,\"selected_apps\":[]}");
+        File.WriteAllText(Path.Combine(config, "update.json"), "do not import authentication data");
+        var storage = new AppStorage(Path.Combine(temp.Path, "native")); var store = new InstallationStore(storage);
+        await new LegacyImporter(storage, store).ImportAsync(new([], [], 0, root), TestContext.Current.CancellationToken);
+        var news = await new UserStateService(storage).NewsAsync("bundled", TestContext.Current.CancellationToken);
+        Assert.Contains("Hello & team", news); Assert.DoesNotContain("bad()", news);
+        Assert.True(File.Exists(Path.Combine(storage.Root, "LegacyData", "news-edited.html")));
+        Assert.False(File.Exists(Path.Combine(storage.Root, "LegacyData", "update.json")));
+        Assert.True((await storage.ReadAsync<DinoSaurList.Core.Profile.DeveloperProfile>("profile-Author.json", TestContext.Current.CancellationToken))!.Pending);
+        Assert.Equal(4, (await new UserStateService(storage).SettingsAsync(TestContext.Current.CancellationToken)).RefreshMode);
+        Assert.Contains("<script>", File.ReadAllText(Path.Combine(config, "news-edited.html")));
+        await new UserStateService(storage).SaveNewsAsync("New native notes", TestContext.Current.CancellationToken);
+        await new LegacyImporter(storage, store).ImportAsync(new([], [], 0, root), TestContext.Current.CancellationToken);
+        Assert.Equal("New native notes", await new UserStateService(storage).NewsAsync("", TestContext.Current.CancellationToken));
+    }
+}

@@ -1,0 +1,46 @@
+param([Parameter(Mandatory=$true)][string]$OperatingSystem)
+$ErrorActionPreference = 'Stop'
+$data = Join-Path $env:RUNNER_TEMP 'dinosaurlist-native-data'
+New-Item -ItemType Directory -Force $data | Out-Null
+$env:DINOSAURLIST_DATA_DIR = $data
+$tool = @{
+  id='1'; folderName='Preview-Author'; name='Preview'; author='Author'; category='MISC'
+  packages=@(@{fileId='2';fileName='v1.0.0-any.zip';version='1.0.0';size=1;sha1=('a'*40);platform='any'})
+  flow=@{sections=@{platform=@{supported='any'}}}; files=@(@{id='3';name='README.md';type='file';sha1=('b'*40)})
+}
+@{fetchedAt=[DateTimeOffset]::UtcNow.ToString('o'); tools=@($tool); warnings=@()} | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $data 'catalogue.json') -Encoding utf8
+$docs = Join-Path $data 'Documents'
+New-Item -ItemType Directory -Force $docs | Out-Null
+"TOOL: Preview`nAUTHOR: Author`nPURPOSE: Validate the native engineering toolbox.`n## Overview`nPreview fixture." | Set-Content (Join-Path $docs ('3-' + ('b'*40) + '.md')) -Encoding utf8
+if ($OperatingSystem -eq 'Windows') {
+  $setup = Get-ChildItem Releases -Filter '*-Setup.exe' | Select-Object -First 1
+  if (-not $setup) { throw 'Setup.exe missing' }
+  $install = Start-Process $setup.FullName -ArgumentList '--silent' -PassThru -Wait
+  if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
+  $app = Join-Path $env:LOCALAPPDATA 'DinoSaurListNative/current/DinoSaurList.exe'
+} elseif ($OperatingSystem -eq 'macOS') {
+  $setup = Get-ChildItem Releases -Filter '*-Setup.pkg' | Select-Object -First 1
+  if (-not $setup) { throw 'Setup.pkg missing' }
+  & sudo installer -pkg $setup.FullName -target /
+  if ($LASTEXITCODE -ne 0) { throw 'macOS installer failed' }
+  $app = @('/Applications/DinoSaurList.app/Contents/MacOS/DinoSaurList', '/Applications/DinoSaurListNative.app/Contents/MacOS/DinoSaurList') | Where-Object { Test-Path $_ } | Select-Object -First 1
+} else { throw 'Unsupported smoke-test OS' }
+if (-not (Test-Path $app)) { throw "Installed application missing: $app" }
+$evidence = Join-Path $env:RUNNER_TEMP 'native-installed-evidence'
+New-Item -ItemType Directory -Force $evidence | Out-Null
+$prefix = Join-Path $evidence 'installed-ui'
+$process = Start-Process $app -ArgumentList @('--smoke-test-output', "`"$prefix`"") -PassThru
+if (-not $process.WaitForExit(60000)) { $process.Kill($true); throw 'Installed app smoke timed out' }
+if ($process.ExitCode -ne 0) { throw "Installed app failed: $($process.ExitCode)" }
+if (-not (Test-Path "$prefix.json") -or -not (Test-Path "$prefix.png")) { throw 'Native screenshot/result missing' }
+$result = Get-Content "$prefix.json" -Raw | ConvertFrom-Json
+if (-not $result.visible -or $result.tools -ne 1) { throw 'Installed native UI failed validation' }
+$cliName = if ($OperatingSystem -eq 'Windows') { 'DinoSaurList.Cli.exe' } else { 'DinoSaurList.Cli' }
+# Both hosts sit at the installed application root so they share the same Velopack locator.
+$cli = Join-Path (Split-Path $app) $cliName
+if (-not (Test-Path $cli)) { throw "Installed CLI missing: $cli" }
+& $cli catalogue --data-dir $data | Set-Content (Join-Path $evidence 'installed-cli.json') -Encoding utf8
+if ($LASTEXITCODE -ne 0) { throw 'Installed self-contained CLI failed' }
+
+& $cli chat --query Preview --data-dir $data | Set-Content (Join-Path $evidence 'installed-assistant.json') -Encoding utf8
+if ($LASTEXITCODE -ne 0) { throw 'Installed assistant/model failed' }

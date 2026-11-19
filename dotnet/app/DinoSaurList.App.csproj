@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>WinExe</OutputType><AssemblyName>DinoSaurList</AssemblyName><AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault><ApplicationIcon>Assets/dinosaur.ico</ApplicationIcon></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../core/DinoSaurList.Core.csproj" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.2" />
+    <PackageReference Include="Markdown.Avalonia" Version="12.0.2" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
+  </ItemGroup>
+  <ItemGroup><AvaloniaResource Include="Assets/**" /><EmbeddedResource Include="../../News/news.md" Link="Assets/news.md" /></ItemGroup>
+</Project>

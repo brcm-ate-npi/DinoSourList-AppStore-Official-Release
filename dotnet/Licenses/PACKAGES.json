@@ -1,0 +1,389 @@
+[
+  {
+    "id": "Avalonia.Angle.Windows.Natives",
+    "version": "2.1.27548.20260419",
+    "license": "LICENSE",
+    "terms": "Avalonia.Angle.Windows.Natives/LICENSE",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.Angle.Windows.Natives/2.1.27548.20260419"
+  },
+  {
+    "id": "Avalonia.AvaloniaEdit",
+    "version": "12.0.0",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2017-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.AvaloniaEdit/12.0.0"
+  },
+  {
+    "id": "Avalonia.BuildServices",
+    "version": "11.3.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2023-2025 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.BuildServices/11.3.2"
+  },
+  {
+    "id": "Avalonia.Desktop",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.Desktop/12.1.2"
+  },
+  {
+    "id": "Avalonia.Fonts.Inter",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.Fonts.Inter/12.1.2"
+  },
+  {
+    "id": "Avalonia.FreeDesktop.AtSpi",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.FreeDesktop.AtSpi/12.1.2"
+  },
+  {
+    "id": "Avalonia.FreeDesktop",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.FreeDesktop/12.1.2"
+  },
+  {
+    "id": "Avalonia.HarfBuzz",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.HarfBuzz/12.1.2"
+  },
+  {
+    "id": "Avalonia.Native",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.Native/12.1.2"
+  },
+  {
+    "id": "Avalonia.Remote.Protocol",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.Remote.Protocol/12.1.2"
+  },
+  {
+    "id": "Avalonia.Skia",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.Skia/12.1.2"
+  },
+  {
+    "id": "Avalonia.Themes.Fluent",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.Themes.Fluent/12.1.2"
+  },
+  {
+    "id": "Avalonia.Win32",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.Win32/12.1.2"
+  },
+  {
+    "id": "Avalonia.X11",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia.X11/12.1.2"
+  },
+  {
+    "id": "Avalonia",
+    "version": "12.1.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2013-2026 © The AvaloniaUI Project",
+    "authors": "Avalonia Team",
+    "source": "https://www.nuget.org/packages/Avalonia/12.1.2"
+  },
+  {
+    "id": "ColorDocument.Avalonia",
+    "version": "12.0.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright (c) 2024 whistyun",
+    "authors": "whistyun",
+    "source": "https://www.nuget.org/packages/ColorDocument.Avalonia/12.0.2"
+  },
+  {
+    "id": "ColorTextBlock.Avalonia",
+    "version": "12.0.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright (c) 2020 whistyun",
+    "authors": "whistyun",
+    "source": "https://www.nuget.org/packages/ColorTextBlock.Avalonia/12.0.2"
+  },
+  {
+    "id": "CommunityToolkit.Mvvm",
+    "version": "8.4.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "(c) .NET Foundation and Contributors. All rights reserved.",
+    "authors": "Microsoft",
+    "source": "https://www.nuget.org/packages/CommunityToolkit.Mvvm/8.4.2"
+  },
+  {
+    "id": "ExCSS",
+    "version": "4.3.1",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "",
+    "authors": "Tyler Brinks",
+    "source": "https://www.nuget.org/packages/ExCSS/4.3.1"
+  },
+  {
+    "id": "HarfBuzzSharp.NativeAssets.Linux",
+    "version": "8.3.1.3",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "© Microsoft Corporation. All rights reserved.",
+    "authors": "Microsoft",
+    "source": "https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.Linux/8.3.1.3"
+  },
+  {
+    "id": "HarfBuzzSharp.NativeAssets.WebAssembly",
+    "version": "8.3.1.3",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "© Microsoft Corporation. All rights reserved.",
+    "authors": "Microsoft",
+    "source": "https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.WebAssembly/8.3.1.3"
+  },
+  {
+    "id": "HarfBuzzSharp.NativeAssets.Win32",
+    "version": "8.3.1.3",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "© Microsoft Corporation. All rights reserved.",
+    "authors": "Microsoft",
+    "source": "https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.Win32/8.3.1.3"
+  },
+  {
+    "id": "HarfBuzzSharp.NativeAssets.macOS",
+    "version": "8.3.1.3",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "© Microsoft Corporation. All rights reserved.",
+    "authors": "Microsoft",
+    "source": "https://www.nuget.org/packages/HarfBuzzSharp.NativeAssets.macOS/8.3.1.3"
+  },
+  {
+    "id": "HarfBuzzSharp",
+    "version": "8.3.1.3",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "© Microsoft Corporation. All rights reserved.",
+    "authors": "Microsoft",
+    "source": "https://www.nuget.org/packages/HarfBuzzSharp/8.3.1.3"
+  },
+  {
+    "id": "HtmlAgilityPack",
+    "version": "1.11.42",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright © ZZZ Projects Inc.",
+    "authors": "ZZZ Projects,Simon Mourrier,Jeff Klawiter,Stephan Grell",
+    "source": "https://www.nuget.org/packages/HtmlAgilityPack/1.11.42"
+  },
+  {
+    "id": "Markdown.Avalonia.Html",
+    "version": "12.0.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "© Simon Baynes 2013; whistyun 2023",
+    "authors": "whistyun",
+    "source": "https://www.nuget.org/packages/Markdown.Avalonia.Html/12.0.2"
+  },
+  {
+    "id": "Markdown.Avalonia.Svg",
+    "version": "12.0.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright (c) 2023 grifsun, whistyun",
+    "authors": "grifsun,whistyun",
+    "source": "https://www.nuget.org/packages/Markdown.Avalonia.Svg/12.0.2"
+  },
+  {
+    "id": "Markdown.Avalonia.SyntaxHigh",
+    "version": "12.0.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright (c) 2021 whistyun",
+    "authors": "whistyun",
+    "source": "https://www.nuget.org/packages/Markdown.Avalonia.SyntaxHigh/12.0.2"
+  },
+  {
+    "id": "Markdown.Avalonia.Tight",
+    "version": "12.0.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright (c) 2010 Bevan Arps, 2020 whistyun",
+    "authors": "Bevan Arps(original),whistyun",
+    "source": "https://www.nuget.org/packages/Markdown.Avalonia.Tight/12.0.2"
+  },
+  {
+    "id": "Markdown.Avalonia",
+    "version": "12.0.2",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright (c) 2010 Bevan Arps, 2020 whistyun",
+    "authors": "Bevan Arps(original),whistyun",
+    "source": "https://www.nuget.org/packages/Markdown.Avalonia/12.0.2"
+  },
+  {
+    "id": "MicroCom.Runtime",
+    "version": "0.11.6",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright 2021 © Nikita Tsukanov",
+    "authors": "MicroCom.Runtime",
+    "source": "https://www.nuget.org/packages/MicroCom.Runtime/0.11.6"
+  },
+  {
+    "id": "ShimSkiaSharp",
+    "version": "4.1.0",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright © Wiesław Šoltés 2026",
+    "authors": "Wiesław Šoltés",
+    "source": "https://www.nuget.org/packages/ShimSkiaSharp/4.1.0"
+  },
+  {
+    "id": "SkiaSharp.NativeAssets.Linux",
+    "version": "3.119.4",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "© Microsoft Corporation. All rights reserved.",
+    "authors": "Microsoft",
+    "source": "https://www.nuget.org/packages/SkiaSharp.NativeAssets.Linux/3.119.4"
+  },
+  {
+    "id": "SkiaSharp.NativeAssets.WebAssembly",
+    "version": "3.119.4",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "© Microsoft Corporation. All rights reserved.",
+    "authors": "Microsoft",
+    "source": "https://www.nuget.org/packages/SkiaSharp.NativeAssets.WebAssembly/3.119.4"
+  },
+  {
+    "id": "SkiaSharp.NativeAssets.Win32",
+    "version": "3.119.4",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "© Microsoft Corporation. All rights reserved.",
+    "authors": "Microsoft",
+    "source": "https://www.nuget.org/packages/SkiaSharp.NativeAssets.Win32/3.119.4"
+  },
+  {
+    "id": "SkiaSharp.NativeAssets.macOS",
+    "version": "3.119.4",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "© Microsoft Corporation. All rights reserved.",
+    "authors": "Microsoft",
+    "source": "https://www.nuget.org/packages/SkiaSharp.NativeAssets.macOS/3.119.4"
+  },
+  {
+    "id": "SkiaSharp",
+    "version": "3.119.4",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "© Microsoft Corporation. All rights reserved.",
+    "authors": "Microsoft",
+    "source": "https://www.nuget.org/packages/SkiaSharp/3.119.4"
+  },
+  {
+    "id": "Svg.Controls.Avalonia",
+    "version": "12.0.0.1",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright © Wiesław Šoltés 2026",
+    "authors": "Wiesław Šoltés",
+    "source": "https://www.nuget.org/packages/Svg.Controls.Avalonia/12.0.0.1"
+  },
+  {
+    "id": "Svg.Custom",
+    "version": "4.1.0",
+    "license": "MS-PL",
+    "terms": "MS-PL.txt",
+    "copyright": "Copyright © Wiesław Šoltés 2026",
+    "authors": "Wiesław Šoltés",
+    "source": "https://www.nuget.org/packages/Svg.Custom/4.1.0"
+  },
+  {
+    "id": "Svg.Model",
+    "version": "4.1.0",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright © Wiesław Šoltés 2026",
+    "authors": "Wiesław Šoltés",
+    "source": "https://www.nuget.org/packages/Svg.Model/4.1.0"
+  },
+  {
+    "id": "Svg.SceneGraph",
+    "version": "4.1.0",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright © Wiesław Šoltés 2026",
+    "authors": "Wiesław Šoltés",
+    "source": "https://www.nuget.org/packages/Svg.SceneGraph/4.1.0"
+  },
+  {
+    "id": "Tmds.DBus.Protocol",
+    "version": "0.94.1",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Tom Deseyn",
+    "authors": "Tom Deseyn",
+    "source": "https://www.nuget.org/packages/Tmds.DBus.Protocol/0.94.1"
+  },
+  {
+    "id": "Velopack",
+    "version": "1.2.161",
+    "license": "MIT",
+    "terms": "MIT.txt",
+    "copyright": "Copyright © Velopack Ltd. All rights reserved.",
+    "authors": "Velopack Ltd,Caelan Sayler,Kevin Bost",
+    "source": "https://www.nuget.org/packages/Velopack/1.2.161"
+  }
+]

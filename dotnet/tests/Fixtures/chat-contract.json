@@ -1,0 +1,44 @@
+{
+  "readmes": [
+    "TOOL: Analyzer\nAUTHOR: Author A\nPURPOSE: Analyze RF measurement files.\nFORMATS: CSV\n## Overview\nAnalyze RF measurements.\n## Features\n- Read CSV measurements\n- Plot statistics\n## Use Cases\n- Validate RF tests",
+    "TOOL: Mapper\nAUTHOR: Author B\nPURPOSE: Map data between database schemas.\n## Objective\nMap database fields.\n## Features\n- Export JSON\n## Use Cases\n- Convert database schemas"
+  ],
+  "conversation": [
+    {
+      "query": "hello",
+      "response": "Hello! Welcome to WSD Dinosaur List.\nI'm here to help you find the right software tool.\nDescribe what you need and I'll find the best match!"
+    },
+    {
+      "query": "thanks",
+      "response": "You're welcome! Let me know if you need help finding a tool."
+    },
+    {
+      "query": "list all tools",
+      "response": "Here are all the tools in our Dinosaur List:\n\n1. Mapper  \u2014  by Author B\n   Map data between database schemas.\n\n2. Analyzer  \u2014  by Author A\n   Analyze RF measurement files.\n\nFeel free to ask me about any of them!"
+    },
+    {
+      "query": "Analyzer",
+      "response": "Analyzer, developed by Author A.\nAnalyze RF measurement files.\n\nType 'describe' for more details."
+    },
+    {
+      "query": "describe",
+      "response": "Analyzer, developed by Author A.\n\nOverview:\nAnalyze RF measurements.\n\nSupported Formats: CSV\n\nKey Features:\n  - Read CSV measurements\n  - Plot statistics\n\nUse Cases:\n  - Validate RF tests"
+    },
+    {
+      "query": "convert database schemas",
+      "response": "Mapper, developed by Author B.\nMap data between database schemas.\n\nType 'describe' for more details."
+    },
+    {
+      "query": "zzzzunknown qqqunknown",
+      "response": "I couldn't find a tool in the Dinosaur List that matches your request.\nPlease try describing your need more specifically.\nYou can also type 'list all tools' to browse what's available."
+    },
+    {
+      "query": "which RF tools are available",
+      "response": "Here are the matching tools from our Dinosaur List:\n\n1. Analyzer  \u2014  by Author A\n   Analyze RF measurement files.\n\nFeel free to ask me about any of them!"
+    },
+    {
+      "query": "bye",
+      "response": "Goodbye! Have a wonderful day!"
+    }
+  ]
+}
