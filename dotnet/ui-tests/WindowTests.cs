@@ -78,7 +78,7 @@ public sealed class WindowTests
         finally { window.Close(); Directory.Delete(root, true); }
     }
     [AvaloniaFact]
-    public async Task StoreCardOpensTheSelectedInstalledVersionThroughCore()
+    public async Task DashboardIconOpensTheSelectedInstalledVersionThroughCore()
     {
         var root = Path.Combine(Path.GetTempPath(), "dinosaurlist-card-" + Guid.NewGuid().ToString("N"));
         var storage = new AppStorage(root); var directory = Path.Combine(storage.Packages, "1", "1.0.0"); Directory.CreateDirectory(directory);
@@ -91,10 +91,11 @@ public sealed class WindowTests
         using var vm = new MainViewModel(root, autoLoadProfiles: false); var window = new MainWindow { DataContext = vm }; window.Show();
         try
         {
-            await vm.InitializeAsync(); vm.NavigateCommand.Execute("Store"); Dispatcher.UIThread.RunJobs();
-            var card = Assert.Single(vm.Tools); Assert.Equal("Download", card.PrimaryAction);
-            card.SelectedCardPackage = tool.Packages[1]; Assert.Equal("Open", card.PrimaryAction);
-            await card.PrimaryCommand.ExecuteAsync(null);
+            await vm.InitializeAsync(); vm.NavigateCommand.Execute("Installed"); Dispatcher.UIThread.RunJobs();
+            var card = Assert.Single(vm.Tools); Assert.Equal("Update", card.PrimaryAction); Assert.Equal(2, card.Packages.Count);
+            card.SelectedCardPackage = tool.Packages[1]; Assert.Equal("Update", card.PrimaryAction);
+            var icon = window.GetVisualDescendants().OfType<Button>().First(b => b.Command == card.IconCommand);
+            await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)icon.Command!).ExecuteAsync(null);
             var marker = Path.Combine(directory, "launched.txt");
             for (var attempt = 0; attempt < 30 && !File.Exists(marker); attempt++) await Task.Delay(100, TestContext.Current.CancellationToken);
             Assert.True(File.Exists(marker), vm.Status); Assert.Equal("1.0.0", vm.SelectedInstallation?.Version);
@@ -115,7 +116,7 @@ public sealed class WindowTests
         {
             var card = new ToolCardViewModel(tool, [Local("1.0.0"), Local(installed)], false, "1.0.0");
             Assert.Equal("1.0.0", card.InstalledVersion);  // keep the user's rollback preference
-            Assert.False(card.HasUpdate); Assert.Equal("Installed", card.UpdateStatus);
+            Assert.False(card.HasUpdate); Assert.Equal("Installed", card.UpdateStatus); Assert.Equal("Latest", card.PrimaryAction);
         }
     }
 

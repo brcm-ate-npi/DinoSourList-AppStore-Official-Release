@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Styling;
+
 
 namespace DinoSaurList;
 
@@ -20,14 +20,10 @@ public sealed class DocumentWindow : Window
         var safe = Regex.Replace(markdown, @"<(script|style|iframe|object)\b[^>]*>.*?</(?:script|style|iframe|object)>", "", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.NonBacktracking);
         var viewer = new global::Markdown.Avalonia.Full.MarkdownScrollViewer
         {
-            Margin = new Thickness(24), SelectionEnabled = true,
+            Margin = new Thickness(24), Padding = new Thickness(0, 0, 20, 20), SelectionEnabled = true,
             Plugins = new global::Markdown.Avalonia.Full.MdAvPlugins { HyperlinkCommand = new WebLinkCommand() },
             Markdown = safe
         };
-        viewer.Styles.Add(new Style(x => x.OfType<ScrollViewer>())
-        {
-            Setters = { new Setter(ScrollViewer.PaddingProperty, new Thickness(0, 0, 18, 18)) }
-        });
         return viewer;
     }
     private sealed class WebLinkCommand : ICommand

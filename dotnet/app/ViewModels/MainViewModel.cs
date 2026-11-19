@@ -22,6 +22,7 @@ using DinoSaurList.Core.Updates;
 
 namespace DinoSaurList.ViewModels;
 
+public sealed record ChatMessage(string Role, string Text);
 public sealed record ToolSection(string Name, List<ToolCardViewModel> Tools) { public string Title => $"{Name} ({Tools.Count})"; }
 public sealed record ContributionCell(string Label, string Colour, DateOnly? Date = null) { public bool HasDate => Date is not null; }
 
@@ -31,6 +32,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly HttpClient newsHttp = new() { Timeout = TimeSpan.FromSeconds(15) };
     private HttpClient http = new() { Timeout = TimeSpan.FromMinutes(30) };
     private IBoxClient box = null!;
+    private readonly IBoxClient? suppliedBox;
     private CatalogueService catalogue = null!;
     private DocumentationService documents = null!;
     private DeveloperProfiles profiles = null!;
@@ -41,7 +43,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly ActivityStore activity;
     private readonly ToolAssistant assistant = new();
     private readonly AssistantChat chat;
-    private readonly AppUpdateService updater = new();
+    private readonly IApplicationUpdater updater;
     private readonly Dictionary<string, string> readmes = [];
     private Dictionary<string, string> activeVersions = [];
     private List<ToolEntry> allTools = [];
@@ -55,6 +57,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<string> Logs { get; } = [];
     public ObservableCollection<ContributionCell> ContributionDays { get; } = [];
     public ObservableCollection<Recommendation> Recommendations { get; } = [];
+    public ObservableCollection<ChatMessage> AssistantMessages { get; } = [new("Assistant", "Welcome to Dinosaur List. Describe your task or ask me to list all tools.")];
     public string WindowTitle => "DinoSaurList — " + AppVersion;
     public string AppVersion => AppUpdateService.Version;
     public string DataDirectory => Storage.Root;
@@ -114,7 +117,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand] private void EditProfile() => EditingProfile = !EditingProfile;
     [RelayCommand] private void OpenProfileLink(ProfileLink? link) { if (link is not null && Uri.TryCreate(link.Url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https") OpenUri(uri.AbsoluteUri); }
     [RelayCommand] private void Exit() => (Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
-    [ObservableProperty] private string search = "";
+    [ObservableProperty] private string dashboardSearch = "";
+    [ObservableProperty] private string storeSearch = "";
+    public string Search { get => IsDashboard ? DashboardSearch : StoreSearch; set { if (IsDashboard) DashboardSearch = value; else StoreSearch = value; } }
     [ObservableProperty] private string category = "All categories";
     [ObservableProperty] private bool favouritesOnly;
     [ObservableProperty] private ToolCardViewModel? selectedTool;
@@ -124,7 +129,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string status = "Loading saved catalogue…";
     [ObservableProperty] private double progress;
     [ObservableProperty] private string query = "";
-    [ObservableProperty] private string assistantStatus = "Searches tool names and cached READMEs with TF-IDF. Index documentation to include the full descriptions.";
+    [ObservableProperty] private string assistantStatus = "Ask about a tool or describe your task. I will use the tool descriptions to help you.";
     [ObservableProperty] private string assistantResponse = "";
     [ObservableProperty] private string readme = "Select a tool to read its documentation.";
     [ObservableProperty] private string news = "";
@@ -149,6 +154,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private LegacyPreview? legacyPreview;
     public bool IsDashboard => Page == "Installed";
     public Func<Task<string?>>? LegacyFolderPicker { get; set; }
+    public Action<string>? DownloadFolderRequested { get; set; }
     [RelayCommand] private async Task BrowseLegacyAsync() { if (LegacyFolderPicker is null) return; var path = await LegacyFolderPicker(); if (path is null) return; LegacyRoot = path; Page = "Settings"; await PreviewLegacyCommand.ExecuteAsync(null); }
     public bool IsStore => Page is "Store" or "Installed";
     public bool IsAssistant => Page == "Assistant";
@@ -168,14 +174,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         && (string.IsNullOrWhiteSpace(Search) || (t.Name + " " + t.Author + " " + t.Category).Contains(Search, StringComparison.OrdinalIgnoreCase)));
     public string VisibleCount => $"{VisibleTools.Count()} of {Tools.Count} tools";
     private readonly bool autoLoadProfiles;
-    public MainViewModel(string? dataRoot = null, bool autoLoadProfiles = true)
+    public MainViewModel(string? dataRoot = null, bool autoLoadProfiles = true, IBoxClient? boxClient = null, IApplicationUpdater? applicationUpdater = null)
     {
-        this.autoLoadProfiles = autoLoadProfiles; chat = new(assistant); Storage = new(dataRoot); installations = new(Storage); state = new(Storage); installedTools = new(Storage, installations, launcher); activity = new(Storage); ConfigureClient();
+        this.autoLoadProfiles = autoLoadProfiles; suppliedBox = boxClient; updater = applicationUpdater ?? new AppUpdateService(); chat = new(assistant); Storage = new(dataRoot); installations = new(Storage); state = new(Storage); installedTools = new(Storage, installations, launcher); activity = new(Storage); ConfigureClient();
     }
     private void ConfigureClient()
     {
         http.Dispose(); http = new() { Timeout = TimeSpan.FromMinutes(30) };
-        box = new BoxManagerClient(http, settings.BoxManagerUrl);
+        box = suppliedBox ?? new BoxManagerClient(http, settings.BoxManagerUrl);
+        profileEpoch++; profileLoads.Clear();
         catalogue = new(box, Storage); documents = new(box, Storage); profiles = new(box, Storage);
     }
     public async Task InitializeAsync() => await GuardAsync(async token =>
@@ -190,6 +197,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (saved is not null) { allTools = saved.Tools; await RebuildAsync(token); Status = $"Saved catalogue from {saved.FetchedAt.LocalDateTime:g}. Refresh to check Box."; }
         else { var live = await catalogue.RefreshAsync(new Progress<string>(s => Status = s), token); allTools = live.Tools; await RebuildAsync(token); Status = $"Loaded {allTools.Count} tools."; }
         manualContributions = await ContributionService.LoadManualAsync(Storage, token); BuildContributions();
+        if (AssistantMessages.Count <= 1)
+        {
+            AssistantMessages.Clear();
+            AssistantMessages.Add(new("Assistant", "Welcome to WSD Dinosaur List!\n\nDescribe your task, ask for a tool by name, or type 'list all tools'.\n\nSome tools you can ask about:\n" + string.Join("\n", allTools.Take(5).Select(t => "• " + t.Name))));
+        }
         await LoadActivityAsync(token);
     });
     private async Task RebuildAsync(CancellationToken token)
@@ -197,11 +209,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         activeVersions = await state.ActiveVersionsAsync(token);
         var previousCategory = Category;
         var current = SelectedTool?.Id; var local = await installations.LoadAsync(token);
+        var selectedPackages = Tools.ToDictionary(t => t.Id, t => t.SelectedCardPackage?.FileId);
         foreach (var old in Tools) old.Icon?.Dispose();
         Tools.Clear(); Categories.Clear(); Categories.Add("All categories"); Authors.Clear();
         foreach (var tool in allTools)
         {
             var card = new ToolCardViewModel(tool, local, favourites.Contains(tool.FolderName), activeVersions.GetValueOrDefault(tool.Id), this);
+            card.SelectedCardPackage = card.Packages.FirstOrDefault(p => p.FileId == selectedPackages.GetValueOrDefault(tool.Id)) ?? card.SelectedCardPackage;
             try { var icon = await documents.IconAsync(tool, token); if (icon is not null) card.Icon = new Bitmap(icon); }
             catch (Exception error) when (error is IOException or HttpRequestException or ArgumentException) { Log($"Icon unavailable: {tool.Name}"); }
             card.SelectedCardInstallation = card.Installed; Tools.Add(card);
@@ -223,12 +237,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         foreach (var name in new[] { nameof(LocalCount), nameof(StoreCount), nameof(CategoryCount), nameof(PageTitle) }) OnPropertyChanged(name);
         SelectedTool = VisibleTools.FirstOrDefault(t => t == current) ?? VisibleTools.FirstOrDefault();
     }
-    partial void OnSearchChanged(string value) => NotifyTools();
+    partial void OnDashboardSearchChanged(string value) { if (IsDashboard) { OnPropertyChanged(nameof(Search)); NotifyTools(); } }
+    partial void OnStoreSearchChanged(string value) { if (!IsDashboard) { OnPropertyChanged(nameof(Search)); NotifyTools(); } }
     partial void OnCategoryChanged(string value) => NotifyTools();
     partial void OnFavouritesOnlyChanged(bool value) => NotifyTools();
     partial void OnPageChanged(string value)
     {
         DetailsVisible = false;
+        OnPropertyChanged(nameof(Search));
         foreach (var name in new[] { nameof(IsDashboard), nameof(IsStore), nameof(IsAssistant), nameof(IsLinks), nameof(IsNews), nameof(IsProfile), nameof(IsSettings), nameof(IsLogs) }) OnPropertyChanged(name);
         NotifyTools();
     }
@@ -256,7 +272,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (SelectedInstallation is null) SelectedInstallation = SelectedTool?.Installed;
         });
     }
-    [RelayCommand] private void Navigate(string value) { FavouritesOnly = false; Page = value; DetailsVisible = false; if (autoLoadProfiles && value == "Developers" && Idle) _ = LoadSharedProfileAsync(); }
+    [RelayCommand] private void Navigate(string value) { FavouritesOnly = false; Page = value; DetailsVisible = false; if (autoLoadProfiles && value == "Developers") _ = ShowProfileAsync(false); }
     [RelayCommand] private void ShowFavourites() { FavouritesOnly = true; Page = "Store"; }
     [RelayCommand] private void UsefulLinks() => Page = "Links";
     [RelayCommand] private void PreviewNews() => DocumentRequested?.Invoke("News & updates", News);
@@ -305,12 +321,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private async Task InstallAsync() => await GuardAsync(async token =>
     {
         if (SelectedTool is not { } selected || SelectedPackage is not { } package) return;
-        if (!selected.Tool.Supports(ToolLauncher.Platform) || (package.Platform != "any" && package.Platform != ToolLauncher.Platform))
+        var alreadyInstalled = selected.InstalledVersions.Any(i => ToolVersion.Compare(i.Version, package.Version) == 0);
+        if (alreadyInstalled || !selected.Tool.Supports(ToolLauncher.Platform) || (package.Platform != "any" && package.Platform != ToolLauncher.Platform))
         {
             var file = await new PackageDownloadService(box, Storage).DownloadAsync(selected.Tool, package,
                 new Progress<DownloadProgress>(p => { Progress = p.Percent; Status = $"Downloading archive: {p.Percent:F0}%"; }), token);
-            Status = $"Downloaded {Path.GetFileName(file)}. This package requires {package.Platform}; it cannot run on {ToolLauncher.Platform}.";
-            OpenUri(Path.GetDirectoryName(file)!); return;
+            Status = alreadyInstalled ? $"Downloaded {Path.GetFileName(file)}. The installed copy was preserved." : $"Downloaded {Path.GetFileName(file)}. This package requires {package.Platform}; it cannot run on {ToolLauncher.Platform}.";
+            var folder = Path.GetDirectoryName(file)!;
+            if (DownloadFolderRequested is { } showFolder) showFolder(folder); else OpenUri(folder);
+            return;
         }
         var service = new InstallService(box, Storage, installations, launcher);
         var record = await service.InstallAsync(selected.Tool, package, new Progress<DownloadProgress>(p => { Progress = p.Percent; Status = $"Downloading {p.Bytes / 1048576.0:F1} MiB ({p.Percent:F0}%)"; }), token);
@@ -341,38 +360,38 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         var index = allTools.Where(t => readmes.ContainsKey(t.Id)).Select(t => (t, readmes[t.Id])).ToArray();
         await Task.Run(() => assistant.Index(index), token); chat.Reset();
-        AssistantStatus = $"Indexed {readmes.Count} README documents with the legacy English NLP/TF-IDF pipeline.";
+        AssistantStatus = $"Ready — {readmes.Count} tool descriptions loaded.";
     }
     [RelayCommand]
     private async Task IndexDocumentationAsync() => await GuardAsync(LoadAssistantDocumentsAsync);
     [RelayCommand]
     private async Task RecommendAsync() => await GuardAsync(async token =>
     {
-        if (readmes.Count == 0) await LoadAssistantDocumentsAsync(token);
         var question = Query.Trim();
         if (question.Length == 0) return;
-        var reply = await Task.Run(() => chat.Reply(question), token); AssistantResponse = reply.Text;
-        AssistantConversation += "\n\nYou: " + question + "\n\nAssistant: " + reply.Text;
-        Query = "";
-        Recommendations.Clear(); foreach (var value in reply.Tools) Recommendations.Add(value);
-        AssistantStatus = $"{Recommendations.Count} matching tools.";
+        Query = ""; AssistantMessages.Add(new("You", question));
+        AssistantConversation += "\n\nYou: " + question;
+        AssistantStatus = "Reading tool descriptions…";
+        try
+        {
+            if (readmes.Count == 0) await LoadAssistantDocumentsAsync(token);
+            var reply = await Task.Run(() => chat.Reply(question), token); AssistantResponse = reply.Text;
+            AssistantMessages.Add(new("Assistant", reply.Text));
+            AssistantConversation += "\n\nAssistant: " + reply.Text;
+            Recommendations.Clear(); foreach (var value in reply.Tools) Recommendations.Add(value);
+            AssistantStatus = Recommendations.Count == 0 ? "Ready for your next question." : $"{Recommendations.Count} tools — choose one below to view it in the Store.";
+        }
+        catch
+        {
+            AssistantMessages.Add(new("Assistant", "I could not prepare suggestions. Please try again or reload the tool descriptions."));
+            AssistantStatus = "Please try again."; throw;
+        }
     });
     [RelayCommand]
     private void SelectRecommendation(Recommendation? value)
     {
-        if (value is null) return; SelectedTool = Tools.FirstOrDefault(t => t.Id == value.Tool.Id); Page = "Store";
+        if (value is null) return; Navigate("Store"); StoreSearch = value.Tool.Name; Category = "All categories"; SelectedTool = Tools.FirstOrDefault(t => t.Id == value.Tool.Id);
     }
-    [RelayCommand]
-    private async Task LoadSharedProfileAsync() => await GuardAsync(async token =>
-    {
-        DeveloperProfile? profile;
-        try { profile = await profiles.LoadAsync(ProfileName, token); Status = "Shared Box profile loaded."; }
-        catch (HttpRequestException) { profile = await profiles.LoadCacheAsync(ProfileName, token); Status = "Box unavailable; showing the last saved profile."; }
-        if (profile is null) { ProfileMessage = ""; ProfileLinksText = ""; }
-        if (profile is not null) { ProfileMessage = profile.Tweet; ProfileLinksText = string.Join('\n', profile.Links.Select(l => l.Title + " | " + l.Url + (string.IsNullOrEmpty(l.Key) ? "" : " | " + l.Key))); }
-        var photo = await profiles.LoadPhotoAsync(ProfileName, token);
-        ProfilePhoto?.Dispose(); ProfilePhoto = photo is null ? null : new Bitmap(photo);
-    });
     [RelayCommand]
     private async Task SaveSharedProfileAsync() => await GuardAsync(async token =>
     {
@@ -382,9 +401,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return new ProfileLink(pair.Length > 1 ? pair[0] : "Link", pair.Length > 1 ? pair[1] : pair[0], pair.Length > 2 ? pair[2] : "");
         }).ToList();
         await profiles.SaveAsync(new(ProfileName, ProfileMessage, DateTimeOffset.UtcNow.ToString("O"), links), token);
-        Status = "Profile and links saved to Box.";
+        profileEpoch++; profileLoads.Clear(); Status = "Profile and links saved to Box.";
     });
-    partial void OnProfileNameChanged(string value) { BuildContributions(); if (autoLoadProfiles && IsProfile && Idle) _ = LoadSharedProfileAsync(); }
+    partial void OnProfileNameChanged(string value) { BuildContributions(); if (autoLoadProfiles && IsProfile) _ = ShowProfileAsync(false); }
     partial void OnContributionYearChanged(int value) => BuildContributions();
     private void BuildContributions()
     {
@@ -413,7 +432,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         using (var drawing = image.CreateDrawingContext()) drawing.DrawImage(source, new Rect((source.Size.Width - size) / 2, (source.Size.Height - size) / 2, size, size), new Rect(0, 0, 256, 256));
         using var bytes = new MemoryStream(); image.Save(bytes, PngBitmapEncoderOptions.Default);
         await profiles.SavePhotoAsync(ProfileName, bytes.ToArray(), token);
-        bytes.Position = 0; ProfilePhoto?.Dispose(); ProfilePhoto = new Bitmap(bytes); Status = "Profile photo saved to Box.";
+        bytes.Position = 0; ProfilePhoto?.Dispose(); ProfilePhoto = new Bitmap(bytes); profileEpoch++; profileLoads.Clear(); Status = "Profile photo saved to Box.";
     });
     [RelayCommand] private async Task SaveNewsAsync() => await GuardAsync(async token => { await state.SaveNewsAsync(News, token); Status = "News saved on this device."; });
     [RelayCommand]
@@ -478,6 +497,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         await RefreshNewsAsync();
     }
     public Task PrepareAutomaticUpdateAsync() => RunUpdateAsync(false);
+    private bool restartRequested;
+    public async Task<bool> PrepareStartupUpdateAsync()
+    {
+        restartRequested = false;
+        await RunUpdateAsync(true);
+        return restartRequested;
+    }
     [RelayCommand] private Task UpdateApplicationAsync() => RunUpdateAsync(true);
     private async Task RunUpdateAsync(bool restart)
     {
@@ -493,7 +519,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     p => Dispatcher.UIThread.Post(() => UpdateStatus = $"Downloading application update: {p}%"), updateCancellation.Token);
                 RestartReady = updater.RestartReady;
             }
-            if (restart && RestartReady) updater.Apply();
+            if (restart && RestartReady) { UpdateStatus = "Applying application update…"; updater.Apply(); restartRequested = true; }
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { UpdateStatus = "Update unavailable: " + error.Message; Log(UpdateStatus); }

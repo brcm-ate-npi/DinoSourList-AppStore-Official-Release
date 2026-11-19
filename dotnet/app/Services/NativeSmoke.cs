@@ -54,6 +54,13 @@ internal static class NativeSmoke
         vm.NavigateCommand.Execute("News"); await Task.Delay(200);
         if (!vm.News.Contains("5.0.0.0", StringComparison.Ordinal)) throw new InvalidOperationException("Python news version/content is missing.");
         SaveWindow(window, prefix + "-news.png");
+        var readmeWindow = new DocumentWindow("README", "# README\n\n" + string.Join("\n\n", Enumerable.Repeat("A long README paragraph that must wrap before the scrollbar. " + new string('x', 120), 60))) { Width = 700, Height = 500 };
+        readmeWindow.Show(window); await Task.Delay(200);
+        var readmeScroll = readmeWindow.GetVisualDescendants().OfType<ScrollViewer>().First(s => s.Extent.Height > s.Viewport.Height);
+        var readmeContent = (Control)readmeScroll.Content!;
+        var readmeRight = readmeContent.TranslatePoint(new Point(readmeContent.Bounds.Width, 0), readmeScroll)!.Value.X;
+        if (readmeRight > readmeScroll.Bounds.Width - 19) throw new InvalidOperationException("README content overlaps the scrollbar.");
+        SaveWindow(readmeWindow, prefix + "-readme.png"); readmeWindow.Close();
         vm.NavigateCommand.Execute("Store"); await Task.Delay(200);
         var scaling = window.RenderScaling;
         using var bitmap = new RenderTargetBitmap(new PixelSize((int)(window.ClientSize.Width * scaling), (int)(window.ClientSize.Height * scaling)), new Vector(96 * scaling, 96 * scaling));

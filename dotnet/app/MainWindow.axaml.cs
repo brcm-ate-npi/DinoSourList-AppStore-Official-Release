@@ -15,6 +15,11 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Opened += (_, _) =>
+        {
+            if (Screens.ScreenFromWindow(this) is { } screen && screen.WorkingArea.Height > 0)
+                Height = Math.Min(Height, Math.Max(MinHeight, screen.WorkingArea.Height / screen.Scaling - 48));
+        };
         SizeChanged += (_, _) => { if (DataContext is MainViewModel model) model.WindowWidth = ClientSize.Width; };
         DataContextChanged += (_, _) =>
         {

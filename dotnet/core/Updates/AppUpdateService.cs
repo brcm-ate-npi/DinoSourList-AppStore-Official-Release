@@ -5,7 +5,14 @@ using Velopack.Sources;
 namespace DinoSaurList.Core.Updates;
 
 // Release assets only. No branch polling, source checkout, Python updater or embedded token.
-public sealed class AppUpdateService
+public interface IApplicationUpdater
+{
+    bool RestartReady { get; }
+    Task<string> CheckAsync(string feed);
+    Task<string> PrepareAutomaticUpdateAsync(string feed, Action<int> progress, CancellationToken token = default);
+    void Apply();
+}
+public sealed class AppUpdateService : IApplicationUpdater
 {
     public const string DefaultFeed = "https://npi-service.kor.broadcom.net/dinosaurlist/";
     public const string GithubRepository = "https://github.com/brcm-ate-npi/DinoSourList-AppStore-Official-Release";
@@ -22,17 +29,17 @@ public sealed class AppUpdateService
             ? new GithubSource(GithubRepository, accessToken: null, prerelease: true)
             : new SimpleWebSource(feed.TrimEnd('/'));
     }
-    private async Task<string> CheckCoreAsync(string feed)
+    private async Task<string> CheckCoreAsync(string feed, CancellationToken token = default)
     {
         available = null;
         manager = new UpdateManager(Source(feed));
         if (!manager.IsInstalled) return "Portable/development mode: download the installer to enable automatic updates.";
-        try { available = await manager.CheckForUpdatesAsync(); }
-        catch when (feed.TrimEnd('/').Equals(DefaultFeed.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+        try { available = await manager.CheckForUpdatesAsync().WaitAsync(TimeSpan.FromSeconds(12), token); }
+        catch when (!token.IsCancellationRequested && feed.TrimEnd('/').Equals(DefaultFeed.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
         {
             // The public repository needs no PAT. Keep the installed channel: preview never leaks into stable.
             manager = new UpdateManager(Source(GithubRepository));
-            available = await manager.CheckForUpdatesAsync();
+            available = await manager.CheckForUpdatesAsync().WaitAsync(TimeSpan.FromSeconds(12), token);
         }
         return available is null ? "You have the latest version." : $"Version {available.TargetFullRelease.Version} is available.";
     }
@@ -60,7 +67,7 @@ public sealed class AppUpdateService
         await gate.WaitAsync(token);
         try
         {
-            var status = await CheckCoreAsync(feed);
+            var status = await CheckCoreAsync(feed, token);
             return available is null ? status : await DownloadCoreAsync(progress, token);
         }
         finally { gate.Release(); }
