@@ -28,7 +28,7 @@ if (!tag.Contains('-'))
         {
             ($"releases.{platform}.json", $"releases.{platform}-preview.json"),
             ($"assets.{platform}.json", $"assets.{platform}-preview.json"),
-            ($"RELEASES-{platform}", $"RELEASES-{platform}-preview")
+            (platform == "win" ? "RELEASES" : $"RELEASES-{platform}", $"RELEASES-{platform}-preview")
         })
         {
             var original = Path.Combine("Releases", source);

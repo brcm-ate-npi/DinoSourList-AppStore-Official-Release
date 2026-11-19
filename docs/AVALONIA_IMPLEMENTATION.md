@@ -161,3 +161,9 @@ The assistant captures plain Enter in the tunneling key route before TextBox mul
 The stable application version is 1.0.0. A version tag such as `v1.0.0` creates the GitHub Release and NPI distribution through the existing headless pipeline. Stable builds use their `win`/`osx` package channel and exclude prerelease GitHub releases from update discovery. New versions are tracked by the release/package version, never the main branch commit date.
 
 Stable release assets also include identical `win-preview`/`osx-preview` compatibility manifests pointing to the stable packages. Existing 0.1 preview clients can therefore discover 1.0.0 through either NPI or GitHub; after applying it they have the stable package/channel. No duplicate application build is used for this transition. Deployment validates that canonical/compatibility feeds agree and still verifies package sizes/SHA-256 before replacing live feeds. Existing preview tag references are removed per the owner's request. Manual tests and UI/update execution remain excluded from CI.
+
+## Redeploy an existing published release
+
+Windows Velopack uses the filename `DinoSaurListNative-1.0.0-full.nupkg` for the default `win` channel; the channel name is omitted. Validation and bounded retention handle this name as well as explicit `-win` and `-osx` names, while requiring the package filename/version/OS and feed hash to agree. Windows legacy manifests use `RELEASES`, which is also copied to the old preview legacy endpoint during stable deployment.
+
+The reusable `deploy-native-release.yml` deploys a published release without rebuilding or running the app. It is used by the normal release workflow and can be dispatched with `releaseTag=v1.0.0` on main to recover a deployment. This uses corrected deployment scripts without moving the immutable v1.0.0 tag or replacing its application packages. GitHub release assets remain the source; both OS packages are verified before changing any live feed.

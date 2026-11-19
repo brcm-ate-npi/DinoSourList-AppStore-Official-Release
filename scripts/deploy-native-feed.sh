@@ -10,7 +10,7 @@ chmod 755 "$target_dir"
 # Upload package bytes before publishing a feed referencing them. Rename each file atomically.
 copy_asset() {
   local file="$1" name
-  name="$(basename "$file")"
+  name="${2:-$(basename "$file")}"
   cp "$file" "$target_dir/.$name.uploading"
   chmod 644 "$target_dir/.$name.uploading"
   mv -f "$target_dir/.$name.uploading" "$target_dir/$name"
@@ -24,6 +24,11 @@ for file in "$source_dir"/*; do
   [ -f "$file" ] && copy_asset "$file"
 done
 for file in "$source_dir"/releases.*.json "$source_dir"/assets.*.json "$source_dir"/RELEASES*; do copy_asset "$file"; done
+# v1.0.0 was published before the Windows default-channel legacy alias was
+# corrected. Derive it from the canonical manifest without changing the release.
+if [ -f "$source_dir/releases.win.json" ] && [ -f "$source_dir/releases.win-preview.json" ] && [ -f "$source_dir/RELEASES" ]; then
+  copy_asset "$source_dir/RELEASES" RELEASES-win-preview
+fi
 # Match the server's bounded release history, independently for each OS/channel.
 # Run only after complete publication; every live JSON/legacy feed reference is protected.
 python3 "$(dirname "$0")/prune-native-feed.py" "$target_dir" --keep 2 --apply

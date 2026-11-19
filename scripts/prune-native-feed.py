@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 
 PACKAGE = re.compile(r"DinoSaurListNative-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)-(win|osx)(-preview)?-(full|delta)\.nupkg")
+# Velopack omits its default Windows channel from stable package filenames.
+DEFAULT_WINDOWS = re.compile(r"DinoSaurListNative-(\d+\.\d+\.\d+)-(full|delta)\.nupkg")
 
 
 def version_key(version):
@@ -44,8 +46,15 @@ def candidates(root, keep=2):
     groups = {}
     for package in root.glob("*.nupkg"):
         match = PACKAGE.fullmatch(package.name)
-        if match and not package.is_symlink():
+        if match:
             version, platform, channel, kind = match.groups()
+        else:
+            default = DEFAULT_WINDOWS.fullmatch(package.name)
+            if not default:
+                continue
+            version, kind = default.groups()
+            platform, channel = "win", None
+        if not package.is_symlink():
             groups.setdefault((platform, channel), {}).setdefault(version, []).append(package)
     removed = []
     for versions in groups.values():

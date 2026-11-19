@@ -1,0 +1,59 @@
+name: Deploy published DinoSaurList release to NPI
+on:
+  workflow_call:
+    inputs:
+      releaseTag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      releaseTag:
+        description: Existing published release tag to deploy
+        required: true
+        type: string
+        default: v1.0.0
+permissions:
+  contents: read
+jobs:
+  deploy-npi:
+    runs-on: self-hosted-rocky
+    timeout-minutes: 15
+    concurrency:
+      group: dinosaurlist-npi-feed
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download published native release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.releaseTag }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]] || { echo 'Invalid release tag'; exit 1; }
+          asset_dir="$RUNNER_TEMP/dinosaurlist-release-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p "$asset_dir"
+          echo "NATIVE_RELEASE_ASSETS=$asset_dir" >> "$GITHUB_ENV"
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft > "$RUNNER_TEMP/dinosaurlist-release-state-$GITHUB_RUN_ID.json"
+          python3 - "$RUNNER_TEMP/dinosaurlist-release-state-$GITHUB_RUN_ID.json" <<'PYCODE'
+          import json,sys
+          assert not json.load(open(sys.argv[1]))['isDraft'], 'Only published releases can be deployed'
+          PYCODE
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir "$asset_dir" --clobber \
+            --pattern 'DinoSaurListNative-*' --pattern 'releases.*' --pattern 'assets.*' --pattern 'RELEASES*'
+      - name: Deploy NPI release feed
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.releaseTag }}
+        run: |
+          ./scripts/deploy-native-feed.sh "${NATIVE_RELEASE_ASSETS:?}" /var/www/dinosaurlist "${RELEASE_TAG#v}"
+          curl --fail --silent --show-error --connect-timeout 15 --max-time 30 https://npi-service.kor.broadcom.net/dinosaurlist/list.json >/dev/null
+      - name: Remove this run's temporary release download
+        if: always()
+        shell: bash
+        run: |
+          asset_dir="$RUNNER_TEMP/dinosaurlist-release-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$asset_dir"
+          rm -f -- "$RUNNER_TEMP/dinosaurlist-release-state-$GITHUB_RUN_ID.json"

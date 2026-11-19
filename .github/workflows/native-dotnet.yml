@@ -261,36 +261,6 @@ jobs:
 
   deploy-npi:
     needs: release
-    runs-on: self-hosted-rocky
-    concurrency:
-      group: dinosaurlist-npi-feed
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-      - name: Download published native release assets
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
-        run: |
-          set -euo pipefail
-          asset_dir="$RUNNER_TEMP/dinosaurlist-release-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          mkdir -p "$asset_dir"
-          echo "NATIVE_RELEASE_ASSETS=$asset_dir" >> "$GITHUB_ENV"
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir "$asset_dir" --clobber \
-            --pattern 'DinoSaurListNative-*' --pattern 'releases.*' --pattern 'assets.*' --pattern 'RELEASES*'
-      - name: Deploy NPI release feed
-        shell: bash
-        env:
-          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
-        run: |
-          ./scripts/deploy-native-feed.sh "${NATIVE_RELEASE_ASSETS:?}" /var/www/dinosaurlist "${RELEASE_TAG#v}"
-          curl --fail --silent --show-error https://npi-service.kor.broadcom.net/dinosaurlist/list.json >/dev/null
-      - name: Remove this run's temporary release download
-        if: always()
-        shell: bash
-        run: |
-          asset_dir="$RUNNER_TEMP/dinosaurlist-release-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          rm -rf -- "$asset_dir"
+    uses: ./.github/workflows/deploy-native-release.yml
+    with:
+      releaseTag: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}

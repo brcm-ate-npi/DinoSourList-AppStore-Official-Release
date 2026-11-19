@@ -26,7 +26,11 @@ def verify(source, expected_version=""):
             raise ValueError("Full release missing in " + feeds[0].name)
         for asset in full:
             name = asset["FileName"]
-            if not re.fullmatch(r"DinoSaurListNative-[A-Za-z0-9.-]+-" + platform + r"(?:-preview)?-full\.nupkg", name):
+            version = asset["Version"]
+            if not re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version):
+                raise ValueError("Invalid package version")
+            channel = r"(?:-win(?:-preview)?)?" if platform == "win" else r"-osx(?:-preview)?"
+            if not re.fullmatch(r"DinoSaurListNative-" + re.escape(version) + channel + r"-full\.nupkg", name):
                 raise ValueError("Invalid package filename")
             package = source / name
             if package.is_symlink() or not package.is_file():
