@@ -151,3 +151,7 @@ README overlap was a local-value precedence issue: upstream Markdown.Avalonia.Ti
 ## 2026-11-19 headless release policy
 
 The current production workflow is: Linux release metadata -> Windows/macOS self-contained publish and Velopack package -> SHA-256-checked draft asset upload -> GitHub release -> atomic NPI feed deployment. Build success does not assert functional/UI or automatic-update verification. In particular, the previously pending first-launch automatic-update proof is no longer a CI/release requirement under the owner's latest instruction. No interactive desktop or signed-in user session is required by this workflow.
+
+## 2026-11-19 compact assistant input
+
+The assistant captures plain Enter in the tunneling key route before TextBox multiline editing, executes the same Send command, and leaves Shift+Enter to the normal newline behavior. Plain Enter is consumed while busy as well, preventing accidental newline insertion during a pending reply. The footer uses a fixed 68-pixel input with compact Send/Close controls and a 28-pixel Reload README row. Recommendations move into the scrollable conversation instead of reserving a separate bottom region. The default assistant window is 840×660 and remains constrained by the monitor work area. This change is checked by compilation/code review only, in accordance with the current build-only policy.
